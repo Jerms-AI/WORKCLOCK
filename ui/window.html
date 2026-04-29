@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>WorkClock</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <span class="title">WORKCLOCK</span>
+    <div class="topbar-actions">
+      <button id="add-btn" class="icon-btn" title="Ask Claude to add a project" aria-label="Add project">+</button>
+      <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+    </div>
+  </header>
+
+  <main id="rows"></main>
+
+  <section id="settings-panel" hidden>
+    <div class="setting">
+      <label>
+        <input type="checkbox" id="setting-always-on-top" />
+        Always on top
+      </label>
+    </div>
+    <div class="setting">
+      <label>
+        Idle nudge threshold (minutes):
+        <input type="number" id="setting-idle-threshold" min="1" max="240" />
+      </label>
+    </div>
+    <div class="setting">
+      <label>
+        <input type="checkbox" id="setting-remember-position" />
+        Remember window position
+      </label>
+    </div>
+    <div class="setting">
+      <button id="setting-reset-position" class="text-btn">Reset to top-right</button>
+    </div>
+    <div class="setting setting-actions">
+      <button id="settings-close" class="text-btn">Close</button>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
