@@ -3,20 +3,35 @@
 let state = { today: null, projects: [] };
 let idleSeconds = 0;
 let idleThreshold = 15 * 60;
-let modalOpenFor = null;  // project name awaiting note
+let modalOpenFor = null;
 
-function fmtCounter(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+// Floor seconds to 5-minute increments.
+function floor5min(seconds) {
+  return Math.floor(seconds / 300) * 5;
 }
 
-function elapsedSecondsForProject(p) {
-  if (!p.running || !p.started_at) return p.today_seconds;
-  const startMs = new Date(p.started_at).getTime();
-  const sessionSecs = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
-  return p.today_seconds + sessionSecs;
+// "H:MM" — current session display (5-min steps).
+function fmtSessionHM(seconds) {
+  const totalMinutes = floor5min(seconds);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
+// "H.MM" — today/total display (5-min steps).
+function fmtTotalHM(seconds) {
+  const totalMinutes = floor5min(seconds);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h}.${String(m).padStart(2, '0')}`;
+}
+
+function sessionElapsedSeconds(p) {
+  let elapsed = p.session_seconds || 0;
+  if (p.running && p.started_at) {
+    elapsed += Math.max(0, Math.floor((Date.now() - new Date(p.started_at).getTime()) / 1000));
+  }
+  return elapsed;
 }
 
 function render() {
@@ -26,7 +41,7 @@ function render() {
   if (state.projects.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'row';
-    empty.innerHTML = '<span class="name" style="color: var(--fg-dim); font-weight: 400;">No projects. Ask Claude to add one.</span>';
+    empty.innerHTML = '<div class="name-col"><span class="name" style="color: var(--fg-dim); font-weight: 400;">No projects. Ask Claude to add one.</span></div>';
     rowsEl.appendChild(empty);
     return;
   }
@@ -35,23 +50,45 @@ function render() {
     const row = document.createElement('div');
     row.className = 'row';
     if (p.running) row.classList.add('running');
+    if (p.paused) row.classList.add('paused');
     if (p.running && idleSeconds >= idleThreshold) row.classList.add('idle-dim');
 
-    const name = document.createElement('span');
+    const sessionElapsed = sessionElapsedSeconds(p);
+    const todayDisplay = (p.today_seconds || 0) + sessionElapsed;
+    const totalDisplay = (p.total_seconds || 0) + sessionElapsed;
+
+    const nameCol = document.createElement('div');
+    nameCol.className = 'name-col';
+
+    const name = document.createElement('div');
     name.className = 'name';
     name.textContent = p.name;
-    row.appendChild(name);
+    nameCol.appendChild(name);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = `today ${fmtTotalHM(todayDisplay)} · total ${fmtTotalHM(totalDisplay)}`;
+    nameCol.appendChild(meta);
+
+    row.appendChild(nameCol);
 
     const counter = document.createElement('span');
     counter.className = 'counter';
-    counter.textContent = fmtCounter(elapsedSecondsForProject(p));
+    counter.textContent = fmtSessionHM(sessionElapsed);
     row.appendChild(counter);
 
-    const dot = document.createElement('button');
-    dot.className = 'dot ' + (p.running ? 'red' : 'green');
-    if (p.running && idleSeconds >= idleThreshold) dot.classList.add('pulsing');
-    dot.addEventListener('click', async () => {
-      if (modalOpenFor) return;  // ignore while modal is open
+    // Stop/start dot
+    const stopDot = document.createElement('button');
+    const isPaused = !!p.paused;
+    let stopColor = 'green';
+    if (p.running) stopColor = 'red';
+    if (isPaused) stopColor = 'grey';
+    stopDot.className = 'dot ' + stopColor;
+    if (p.running && idleSeconds >= idleThreshold && !isPaused) stopDot.classList.add('pulsing');
+    stopDot.disabled = isPaused;
+    stopDot.addEventListener('click', async () => {
+      if (modalOpenFor) return;
+      if (isPaused) return;
       if (!p.running) {
         await pywebview.api.start_timer(p.name);
       } else {
@@ -59,7 +96,27 @@ function render() {
         openNoteModal(p.name);
       }
     });
-    row.appendChild(dot);
+    row.appendChild(stopDot);
+
+    // Pause/resume dot
+    const pauseDot = document.createElement('button');
+    const isActiveSession = p.running || isPaused;
+    let pauseColor = 'grey';
+    if (p.running) pauseColor = 'green';
+    if (isPaused) pauseColor = 'yellow';
+    pauseDot.className = 'pause-btn ' + pauseColor;
+    pauseDot.textContent = isPaused ? '▶' : '⏸';
+    pauseDot.disabled = !isActiveSession;
+    pauseDot.addEventListener('click', async () => {
+      if (modalOpenFor) return;
+      if (!isActiveSession) return;
+      if (isPaused) {
+        await pywebview.api.resume_timer(p.name);
+      } else {
+        await pywebview.api.pause_timer(p.name);
+      }
+    });
+    row.appendChild(pauseDot);
 
     rowsEl.appendChild(row);
   }
@@ -75,7 +132,6 @@ function openNoteModal(projectName) {
   input.value = '';
   save.disabled = true;
   modal.hidden = false;
-  // focus on next tick so the modal is visible first
   setTimeout(() => input.focus(), 0);
 }
 
@@ -110,7 +166,6 @@ function wireModal() {
     if (e.key === 'Enter' && !save.disabled) {
       submit();
     }
-    // Escape does nothing — note is required.
   });
 
   save.addEventListener('click', submit);
@@ -138,7 +193,7 @@ function wireDrag() {
 
   document.body.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
-    if (modalOpenFor) return;  // no drag while modal is open
+    if (modalOpenFor) return;
     if (isInteractive(e.target)) return;
     if (window.pywebview && window.pywebview.api && pywebview.api.start_drag) {
       pywebview.api.start_drag();

@@ -8,7 +8,7 @@ import os
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import webview
@@ -93,9 +93,7 @@ class API:
             s["projects"].append({
                 "name": upper_name,
                 "path": win_path,
-                "running": False,
-                "started_at": None,
-                "today_seconds": 0,
+                **state.PROJECT_DEFAULTS,
             })
 
         return state.mutate_state(mut)
@@ -106,32 +104,75 @@ class API:
         return state.mutate_state(mut)
 
     def start_timer(self, name: str) -> dict:
+        """Start a fresh session (idle -> running)."""
         now = _now()
 
         def mut(s):
             for p in s["projects"]:
-                if p["name"] == name and not p["running"]:
+                if p["name"] == name and not p["running"] and not p["paused"]:
                     p["running"] = True
+                    p["paused"] = False
+                    p["started_at"] = now.isoformat()
+                    p["session_seconds"] = 0
+        return state.mutate_state(mut)
+
+    def pause_timer(self, name: str) -> dict:
+        """Freeze the session counter (running -> paused). No log entry."""
+        now = _now()
+
+        def mut(s):
+            for p in s["projects"]:
+                if p["name"] == name and p["running"] and not p["paused"]:
+                    started_iso = p.get("started_at")
+                    if started_iso:
+                        elapsed = max(0, int((now - datetime.fromisoformat(started_iso)).total_seconds()))
+                        p["session_seconds"] += elapsed
+                    p["running"] = False
+                    p["paused"] = True
+                    p["started_at"] = None
+        return state.mutate_state(mut)
+
+    def resume_timer(self, name: str) -> dict:
+        """Continue an in-progress session (paused -> running)."""
+        now = _now()
+
+        def mut(s):
+            for p in s["projects"]:
+                if p["name"] == name and p["paused"]:
+                    p["running"] = True
+                    p["paused"] = False
                     p["started_at"] = now.isoformat()
         return state.mutate_state(mut)
 
     def stop_timer(self, name: str) -> dict:
-        """Stop the timer; capture session info for attach_note to finalize."""
+        """End the session (running or paused -> idle). Commit to today/total, reset session counter,
+        capture for attach_note. Modal blocks the UI until note is saved."""
         now = _now()
         captured: dict = {}
 
         def mut(s):
             for p in s["projects"]:
-                if p["name"] == name and p["running"]:
-                    started_iso = p["started_at"]
-                    captured["started_at"] = started_iso
+                if p["name"] == name and (p["running"] or p["paused"]):
+                    elapsed = int(p.get("session_seconds", 0))
+                    started_iso = p.get("started_at")
+                    if p["running"] and started_iso:
+                        elapsed += max(0, int((now - datetime.fromisoformat(started_iso)).total_seconds()))
+                    # Use the *original* session start for log entry: started_at - session_seconds.
+                    # If pause/resume happened, started_at points to the most recent resume — back it out.
+                    if started_iso:
+                        first_start = datetime.fromisoformat(started_iso) - timedelta(seconds=p.get("session_seconds", 0))
+                    else:
+                        # Paused at the moment of stop: reconstruct from now - elapsed
+                        first_start = now - timedelta(seconds=elapsed)
+                    captured["started_at"] = first_start.isoformat()
                     captured["stopped_at"] = now.isoformat()
                     captured["project_name"] = p["name"]
-                    started = datetime.fromisoformat(started_iso)
-                    elapsed = max(0, int((now - started).total_seconds()))
                     p["today_seconds"] += elapsed
+                    p["total_seconds"] = p.get("total_seconds", 0) + elapsed
                     p["running"] = False
+                    p["paused"] = False
                     p["started_at"] = None
+                    p["session_seconds"] = 0
 
         new_state = state.mutate_state(mut)
         if captured:
