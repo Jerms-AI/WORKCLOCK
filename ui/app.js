@@ -3,7 +3,7 @@
 let state = { today: null, projects: [] };
 let idleSeconds = 0;
 let idleThreshold = 15 * 60;
-let openNoteFor = null;
+let modalOpenFor = null;  // project name awaiting note
 
 function fmtCounter(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -51,50 +51,69 @@ function render() {
     dot.className = 'dot ' + (p.running ? 'red' : 'green');
     if (p.running && idleSeconds >= idleThreshold) dot.classList.add('pulsing');
     dot.addEventListener('click', async () => {
+      if (modalOpenFor) return;  // ignore while modal is open
       if (!p.running) {
         await pywebview.api.start_timer(p.name);
       } else {
         await pywebview.api.stop_timer(p.name);
-        openNoteFor = p.name;
-        render();
-        const inputEl = document.querySelector(`input[data-note-for="${p.name}"]`);
-        if (inputEl) inputEl.focus();
+        openNoteModal(p.name);
       }
     });
     row.appendChild(dot);
 
     rowsEl.appendChild(row);
-
-    if (openNoteFor === p.name) {
-      const wrap = document.createElement('div');
-      wrap.className = 'row';
-      wrap.style.borderTop = 'none';
-
-      const noteWrap = document.createElement('div');
-      noteWrap.className = 'note-input-wrap';
-
-      const input = document.createElement('input');
-      input.className = 'note-input';
-      input.placeholder = 'what did you work on?';
-      input.dataset.noteFor = p.name;
-
-      input.addEventListener('keydown', async (e) => {
-        if (e.key === 'Enter') {
-          await pywebview.api.attach_note(p.name, input.value);
-          openNoteFor = null;
-          render();
-        } else if (e.key === 'Escape') {
-          await pywebview.api.attach_note(p.name, '');
-          openNoteFor = null;
-          render();
-        }
-      });
-
-      noteWrap.appendChild(input);
-      wrap.appendChild(noteWrap);
-      rowsEl.appendChild(wrap);
-    }
   }
+}
+
+function openNoteModal(projectName) {
+  modalOpenFor = projectName;
+  const modal = document.getElementById('note-modal');
+  const subtitle = document.getElementById('modal-subtitle');
+  const input = document.getElementById('modal-input');
+  const save = document.getElementById('modal-save');
+  subtitle.textContent = projectName;
+  input.value = '';
+  save.disabled = true;
+  modal.hidden = false;
+  // focus on next tick so the modal is visible first
+  setTimeout(() => input.focus(), 0);
+}
+
+function closeNoteModal() {
+  modalOpenFor = null;
+  document.getElementById('note-modal').hidden = true;
+}
+
+function wireModal() {
+  const input = document.getElementById('modal-input');
+  const save = document.getElementById('modal-save');
+
+  const submit = async () => {
+    const value = input.value.trim();
+    if (!value) return;
+    const projectName = modalOpenFor;
+    if (!projectName) return;
+    save.disabled = true;
+    try {
+      await pywebview.api.attach_note(projectName, value);
+    } finally {
+      closeNoteModal();
+      render();
+    }
+  };
+
+  input.addEventListener('input', () => {
+    save.disabled = input.value.trim().length === 0;
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !save.disabled) {
+      submit();
+    }
+    // Escape does nothing — note is required.
+  });
+
+  save.addEventListener('click', submit);
 }
 
 window.setState = function (newState) {
@@ -113,12 +132,13 @@ function wireDrag() {
     if (!el) return false;
     const tag = el.tagName;
     if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'A') return true;
-    if (el.closest && el.closest('button, input, select, textarea, a')) return true;
+    if (el.closest && el.closest('button, input, select, textarea, a, .modal-backdrop')) return true;
     return false;
   };
 
   document.body.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
+    if (modalOpenFor) return;  // no drag while modal is open
     if (isInteractive(e.target)) return;
     if (window.pywebview && window.pywebview.api && pywebview.api.start_drag) {
       pywebview.api.start_drag();
@@ -143,6 +163,7 @@ setInterval(async () => {
 
 document.addEventListener('DOMContentLoaded', () => {
   wireDrag();
+  wireModal();
   if (window.pywebview && window.pywebview.api) {
     pywebview.api.get_state().then((s) => {
       state = s;

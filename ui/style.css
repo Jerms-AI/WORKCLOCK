@@ -26,6 +26,11 @@ html, body {
   overflow: hidden;
 }
 
+input, textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 #topbar {
   display: flex;
   align-items: center;
@@ -211,4 +216,76 @@ html, body {
   gap: 6px;
   grid-column: 1 / -1;
   padding-top: 6px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 10, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal-content {
+  width: 88%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-title {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--fg);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.modal-subtitle {
+  font-size: 11px;
+  color: var(--fg-dim);
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+
+.modal-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--fg-dim);
+  color: var(--fg);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  outline: none;
+}
+
+.modal-input:focus {
+  border-color: var(--fg);
+}
+
+.modal-save {
+  width: 100%;
+  background: var(--fg);
+  border: none;
+  color: var(--bg);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.modal-save:disabled {
+  background: var(--fg-dim);
+  color: var(--bg);
+  cursor: not-allowed;
+  opacity: 0.6;
 }

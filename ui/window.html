@@ -15,6 +15,15 @@
 
   <main id="rows"></main>
 
+  <div id="note-modal" class="modal-backdrop" hidden>
+    <div class="modal-content">
+      <div class="modal-title">What did you work on?</div>
+      <div class="modal-subtitle" id="modal-subtitle"></div>
+      <input id="modal-input" class="modal-input" type="text" autocomplete="off" placeholder="brief note" />
+      <button id="modal-save" class="modal-save" disabled>Save</button>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
