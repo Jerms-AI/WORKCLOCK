@@ -4,6 +4,11 @@ let state = { today: null, projects: [] };
 let idleSeconds = 0;
 let idleThreshold = 15 * 60;
 let modalOpenFor = null;
+let resetModalProject = null;
+
+function isModalOpen() {
+  return modalOpenFor !== null || resetModalProject !== null;
+}
 
 // Floor seconds to 5-minute increments.
 function floor5min(seconds) {
@@ -111,7 +116,7 @@ function render() {
     if (p.running && idleSeconds >= idleThreshold && !isPaused) stopDot.classList.add('pulsing');
     stopDot.disabled = isPaused;
     stopDot.addEventListener('click', async () => {
-      if (modalOpenFor) return;
+      if (isModalOpen()) return;
       if (isPaused) return;
       if (!p.running) {
         await pywebview.api.start_timer(p.name);
@@ -132,7 +137,7 @@ function render() {
     pauseDot.textContent = isPaused ? '▶' : '⏸';
     pauseDot.disabled = !isActiveSession;
     pauseDot.addEventListener('click', async () => {
-      if (modalOpenFor) return;
+      if (isModalOpen()) return;
       if (!isActiveSession) return;
       if (isPaused) {
         await pywebview.api.resume_timer(p.name);
@@ -141,6 +146,22 @@ function render() {
       }
     });
     row.appendChild(pauseDot);
+
+    // Reset button — visible only when session is active
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'reset-btn';
+    resetBtn.textContent = '↺';
+    resetBtn.title = 'Reset session';
+    if (!p.running && !p.paused) {
+      resetBtn.style.visibility = 'hidden';
+      resetBtn.disabled = true;
+    } else {
+      resetBtn.addEventListener('click', () => {
+        if (isModalOpen()) return;
+        openResetModal(p);
+      });
+    }
+    row.appendChild(resetBtn);
 
     rowsEl.appendChild(row);
   }
@@ -195,6 +216,51 @@ function wireModal() {
   save.addEventListener('click', submit);
 }
 
+function openResetModal(project) {
+  resetModalProject = project;
+  document.getElementById('reset-subtitle').textContent = project.name;
+
+  let firstStart;
+  if (project.started_at) {
+    const resumedAt = new Date(project.started_at);
+    firstStart = new Date(resumedAt.getTime() - (project.session_seconds || 0) * 1000);
+  } else {
+    firstStart = new Date(Date.now() - (project.session_seconds || 0) * 1000);
+  }
+  document.getElementById('reset-meta').textContent =
+    'started ' + firstStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const now = new Date();
+  document.getElementById('reset-time').value =
+    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('reset-note').value = '';
+  document.getElementById('reset-modal').hidden = false;
+  setTimeout(() => document.getElementById('reset-time').focus(), 0);
+}
+
+function closeResetModal() {
+  resetModalProject = null;
+  document.getElementById('reset-modal').hidden = true;
+}
+
+function wireResetModal() {
+  document.getElementById('reset-save').addEventListener('click', async () => {
+    const project = resetModalProject;
+    if (!project) return;
+    const stopTime = document.getElementById('reset-time').value;
+    const note = document.getElementById('reset-note').value || null;
+    closeResetModal();
+    await pywebview.api.reset_timer(project.name, stopTime, note);
+  });
+
+  document.getElementById('reset-omit').addEventListener('click', async () => {
+    const project = resetModalProject;
+    if (!project) return;
+    closeResetModal();
+    await pywebview.api.discard_timer(project.name);
+  });
+}
+
 window.setState = function (newState) {
   state = newState;
   render();
@@ -217,7 +283,7 @@ function wireDrag() {
 
   document.body.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
-    if (modalOpenFor) return;
+    if (isModalOpen()) return;
     if (isInteractive(e.target)) return;
     if (window.pywebview && window.pywebview.api && pywebview.api.start_drag) {
       pywebview.api.start_drag();
@@ -243,11 +309,12 @@ setInterval(async () => {
 document.addEventListener('DOMContentLoaded', () => {
   wireDrag();
   wireModal();
+  wireResetModal();
 
   const pauseAllBtn = document.getElementById('pause-all-btn');
   if (pauseAllBtn) {
     pauseAllBtn.addEventListener('click', async () => {
-      if (modalOpenFor) return;
+      if (isModalOpen()) return;
       const anyRunning = state.projects.some(p => p.running);
       if (anyRunning) {
         await pywebview.api.pause_all();
