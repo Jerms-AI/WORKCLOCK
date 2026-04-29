@@ -12,6 +12,7 @@ function isModalOpen() {
 }
 
 function resizeToContent() {
+  if (isModalOpen()) return;
   if (!window.pywebview || !window.pywebview.api) return;
   const topbar = document.getElementById('topbar');
   const rows = document.getElementById('rows');
@@ -27,10 +28,10 @@ function resizeForModal(modalId) {
   setTimeout(() => {
     const content = document.querySelector('#' + modalId + ' .modal-content');
     if (!content || !window.pywebview || !window.pywebview.api) return;
-    const target = content.offsetHeight + 80;
+    const target = content.offsetHeight + 100;
     lastWindowHeight = target;
-    pywebview.api.resize(Math.max(target, 180));
-  }, 0);
+    pywebview.api.resize(Math.max(target, 220));
+  }, 30);
 }
 
 // Floor seconds to 5-minute increments.
