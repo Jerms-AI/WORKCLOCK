@@ -196,6 +196,10 @@ function wireSettings() {
   document.getElementById('add-btn').addEventListener('click', () => {
     // No-op in v1; tooltip explains
   });
+
+  document.getElementById('close-btn').addEventListener('click', () => {
+    pywebview.api.quit_app();
+  });
 }
 
 setInterval(() => {

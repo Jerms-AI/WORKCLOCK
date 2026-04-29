@@ -1,6 +1,7 @@
 """WorkClock entry point: pywebview window + state watcher + JS API."""
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 import sys
@@ -20,6 +21,28 @@ from workclock.paths import normalize_path
 
 UI_DIR = Path(__file__).parent / "ui"
 INDEX = (UI_DIR / "window.html").as_uri()
+
+WINDOW_TITLE = "WorkClock"
+HWND_TOPMOST = -1
+HWND_NOTOPMOST = -2
+SWP_NOSIZE = 0x0001
+SWP_NOMOVE = 0x0002
+SWP_NOACTIVATE = 0x0010
+
+
+def _set_always_on_top(enable: bool) -> None:
+    """Apply always-on-top via Win32 SetWindowPos (pywebview's runtime toggle is unreliable)."""
+    try:
+        hwnd = ctypes.windll.user32.FindWindowW(None, WINDOW_TITLE)
+        if not hwnd:
+            return
+        flag = HWND_TOPMOST if enable else HWND_NOTOPMOST
+        ctypes.windll.user32.SetWindowPos(
+            hwnd, flag, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        )
+    except OSError:
+        pass
 
 
 def _now() -> datetime:
@@ -68,9 +91,13 @@ class API:
         s = settings.read_settings()
         s[key] = value
         settings.write_settings(s)
-        if key == "always_on_top" and self._window_ref[0]:
-            self._window_ref[0].on_top = bool(value)
+        if key == "always_on_top":
+            _set_always_on_top(bool(value))
         return s
+
+    def quit_app(self) -> None:
+        if self._window_ref[0]:
+            self._window_ref[0].destroy()
 
     def reset_window_position(self) -> None:
         s = settings.read_settings()
