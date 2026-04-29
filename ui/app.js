@@ -170,7 +170,6 @@ window.setIdle = function (seconds, thresholdSeconds) {
 function wireSettings() {
   const panel = document.getElementById('settings-panel');
   const btn = document.getElementById('settings-btn');
-  const closeBtn = document.getElementById('settings-close');
   const aot = document.getElementById('setting-always-on-top');
   const idle = document.getElementById('setting-idle-threshold');
 
@@ -183,13 +182,29 @@ function wireSettings() {
     panel.hidden = !panel.hidden;
   });
 
-  closeBtn.addEventListener('click', () => { panel.hidden = true; });
-
   aot.addEventListener('change', () => pywebview.api.update_setting('always_on_top', aot.checked));
   idle.addEventListener('change', () => pywebview.api.update_setting('idle_threshold_minutes', parseInt(idle.value, 10) || 15));
 
   document.getElementById('add-btn').addEventListener('click', () => {
     // No-op in v1; tooltip explains
+  });
+}
+
+function wireDrag() {
+  const isInteractive = (el) => {
+    if (!el) return false;
+    const tag = el.tagName;
+    if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'A') return true;
+    if (el.closest && el.closest('button, input, select, textarea, a')) return true;
+    return false;
+  };
+
+  document.body.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (isInteractive(e.target)) return;
+    if (window.pywebview && window.pywebview.api && pywebview.api.start_drag) {
+      pywebview.api.start_drag();
+    }
   });
 }
 
@@ -199,6 +214,7 @@ setInterval(() => {
 
 document.addEventListener('DOMContentLoaded', () => {
   wireSettings();
+  wireDrag();
   if (window.pywebview && window.pywebview.api) {
     pywebview.api.get_state().then((s) => {
       state = s;

@@ -28,6 +28,8 @@ HWND_NOTOPMOST = -2
 SWP_NOSIZE = 0x0001
 SWP_NOMOVE = 0x0002
 SWP_NOACTIVATE = 0x0010
+WM_NCLBUTTONDOWN = 0x00A1
+HTCAPTION = 2
 
 
 def _find_workclock_hwnd() -> int:
@@ -114,6 +116,17 @@ class API:
         if key == "always_on_top":
             _set_always_on_top(bool(value))
         return s
+
+    def start_drag(self) -> None:
+        """Triggered by JS mousedown on non-interactive area. Hands the drag off to Windows."""
+        hwnd = _find_workclock_hwnd()
+        if not hwnd:
+            return
+        try:
+            ctypes.windll.user32.ReleaseCapture()
+            ctypes.windll.user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0)
+        except OSError:
+            pass
 
     def add_project(self, raw_path: str, name: str | None = None) -> dict:
         win_path = normalize_path(raw_path)
