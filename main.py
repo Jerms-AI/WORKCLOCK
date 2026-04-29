@@ -271,6 +271,14 @@ class API:
                     p["session_seconds"] = 0
         return state.mutate_state(mut)
 
+    def resize(self, height: int) -> None:
+        w = self._window_ref[0]
+        if w:
+            try:
+                w.resize(420, max(60, int(height)))
+            except Exception as e:
+                _log(f"resize failed: {e}")
+
     def start_drag(self) -> None:
         if self._dragging:
             return

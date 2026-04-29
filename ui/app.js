@@ -5,9 +5,32 @@ let idleSeconds = 0;
 let idleThreshold = 15 * 60;
 let modalOpenFor = null;
 let resetModalProject = null;
+let lastWindowHeight = 0;
 
 function isModalOpen() {
   return modalOpenFor !== null || resetModalProject !== null;
+}
+
+function resizeToContent() {
+  if (!window.pywebview || !window.pywebview.api) return;
+  const topbar = document.getElementById('topbar');
+  const rows = document.getElementById('rows');
+  const h = (topbar ? topbar.offsetHeight : 0) + (rows ? rows.offsetHeight : 0) + 2;
+  const target = Math.max(60, Math.ceil(h));
+  if (target !== lastWindowHeight) {
+    lastWindowHeight = target;
+    pywebview.api.resize(target);
+  }
+}
+
+function resizeForModal(modalId) {
+  setTimeout(() => {
+    const content = document.querySelector('#' + modalId + ' .modal-content');
+    if (!content || !window.pywebview || !window.pywebview.api) return;
+    const target = content.offsetHeight + 80;
+    lastWindowHeight = target;
+    pywebview.api.resize(Math.max(target, 180));
+  }, 0);
 }
 
 // Floor seconds to 5-minute increments.
@@ -165,6 +188,8 @@ function render() {
 
     rowsEl.appendChild(row);
   }
+
+  resizeToContent();
 }
 
 function openNoteModal(projectName) {
@@ -177,12 +202,14 @@ function openNoteModal(projectName) {
   input.value = '';
   save.disabled = true;
   modal.hidden = false;
+  resizeForModal('note-modal');
   setTimeout(() => input.focus(), 0);
 }
 
 function closeNoteModal() {
   modalOpenFor = null;
   document.getElementById('note-modal').hidden = true;
+  resizeToContent();
 }
 
 function wireModal() {
@@ -235,12 +262,14 @@ function openResetModal(project) {
     String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   document.getElementById('reset-note').value = '';
   document.getElementById('reset-modal').hidden = false;
+  resizeForModal('reset-modal');
   setTimeout(() => document.getElementById('reset-time').focus(), 0);
 }
 
 function closeResetModal() {
   resetModalProject = null;
   document.getElementById('reset-modal').hidden = true;
+  resizeToContent();
 }
 
 function wireResetModal() {
