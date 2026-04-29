@@ -202,6 +202,52 @@ Or from WSL:
 
 Coverage: path normalization, state read/mutate/atomic-write/today-rollover/legacy-backfill, `Time_Worked.json` append. UI behavior is verified manually + via Claude's screenshot tool (`tools/capture.py`).
 
+## Tooling — Self-Check & Visual QA
+
+### Cost convention — user-eyes vs claude-eyes (READ FIRST)
+
+Visual checks require killing and relaunching the app (WebView2 caches aggressively), then reading a PNG — moderately expensive. A small logic fix shouldn't need that. Default is **user-eyes**; Claude switches to **claude-eyes** only when the user opts in by keyword.
+
+| User says | Mode | What Claude does |
+|---|---|---|
+| (no keyword) | **user-eyes (cheap)** | Make change, run `pytest`, describe what landed. User glances at the running app. |
+| "verify" / "check it" / "screenshot it" / "use your eyes" | **claude-eyes (paid)** | Kill app, relaunch, run `tools/capture.py`, read the PNG, confirm. |
+
+**Hard rules for Claude:**
+- Don't screenshot after small/trivial changes — run pytest, describe the diff, hand off.
+- If a fix isn't working, think harder about *why* before re-screenshotting. Pytest output is cheaper signal.
+- If claiming a UI change looks correct without a screenshot, say so explicitly rather than asserting it looks right.
+
+### Self-check before claiming done
+
+Run this before saying any task is complete:
+
+```bash
+/mnt/c/Users/Xliminal/Code/PersonalProjects/WorkClock/venv/Scripts/python.exe -m pytest tests/ -v
+```
+
+For UI changes, also kill and relaunch the app, then screenshot if in claude-eyes mode:
+
+```bash
+# Kill both processes (pythonw spawns python — need to kill both)
+taskkill /F /IM python.exe && taskkill /F /IM pythonw.exe
+
+# Relaunch (from WSL)
+cmd.exe /c "C:\\Users\\Xliminal\\Code\\PersonalProjects\\WorkClock\\WorkClock.bat"
+
+# Wait ~2s for the window to appear, then screenshot
+/mnt/c/Users/Xliminal/Code/PersonalProjects/WorkClock/venv/Scripts/python.exe \
+  tools/capture.py "C:\Users\Xliminal\AppData\Roaming\WorkClock\_screenshot.png"
+```
+
+Then use the `Read` tool on the PNG to see what's actually on screen.
+
+### What pytest covers vs what it doesn't
+
+pytest covers: path normalization, state mutations, atomic writes, today-rollover, `Time_Worked.json` append. It does **not** cover: visual layout, drag behavior, WebView2 rendering, or any interaction that requires a live window. Those need a screenshot.
+
+---
+
 ## Build history & key decisions
 
 The original spec is at `docs/superpowers/specs/2026-04-29-workclock-design.md` and the original plan is at `docs/superpowers/plans/2026-04-29-workclock-implementation.md`. **Both are partially obsolete** — the README above is the source of truth. Significant pivots from the original spec:
