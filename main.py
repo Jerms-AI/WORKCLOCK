@@ -387,9 +387,10 @@ def main():
         y=100,
         on_top=ALWAYS_ON_TOP,
         frameless=True,
+        transparent=True,
         easy_drag=False,
         resizable=False,
-        background_color="#ffffff",
+        background_color="#f5f5f5",
     )
     window_ref[0] = window
 

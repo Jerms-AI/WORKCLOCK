@@ -1,5 +1,6 @@
 :root {
-  --bg: #ffffff;
+  --bg: rgba(248, 248, 248, 0.84);
+  --bg-solid: #f8f8f8;
   --fg: #111111;
   --fg-dim: #888888;
   --row-divider: #e8e8e8;
@@ -309,7 +310,7 @@ input, textarea {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: var(--bg);
+  background: var(--bg-solid);
   padding: 24px 20px;
   border: 1px solid var(--row-divider);
 }
