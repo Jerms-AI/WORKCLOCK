@@ -294,7 +294,7 @@ input, textarea {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(10, 10, 10, 0.92);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -313,6 +313,7 @@ input, textarea {
   background: var(--bg-solid);
   padding: 24px 20px;
   border: 1px solid var(--row-divider);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
 }
 
 .modal-title {
