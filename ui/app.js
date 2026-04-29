@@ -212,6 +212,18 @@ setInterval(() => {
   render();
 }, 1000);
 
+// Safety-net polling: re-pull state every 3s in case the watchdog push misses an event.
+setInterval(async () => {
+  if (!window.pywebview || !window.pywebview.api) return;
+  try {
+    const s = await pywebview.api.get_state();
+    if (JSON.stringify(s) !== JSON.stringify(state)) {
+      state = s;
+      render();
+    }
+  } catch (e) {}
+}, 3000);
+
 document.addEventListener('DOMContentLoaded', () => {
   wireSettings();
   wireDrag();

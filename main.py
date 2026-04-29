@@ -331,8 +331,8 @@ class StateChangeHandler(FileSystemEventHandler):
         self._window_ref = window_ref
         self._last_push = 0.0
 
-    def on_modified(self, event):
-        if Path(event.src_path).name != "state.json":
+    def _push(self, path: str):
+        if Path(path).name != "state.json":
             return
         now = time.time()
         if now - self._last_push < 0.2:
@@ -340,10 +340,20 @@ class StateChangeHandler(FileSystemEventHandler):
         self._last_push = now
         try:
             s = _state_with_recovery_flags()
+            _log(f"watchdog push projects={len(s.get('projects', []))}")
             if self._window_ref[0]:
                 self._window_ref[0].evaluate_js(f"window.setState({json.dumps(s)})")
         except Exception as e:
-            print(f"[WorkClock] state push failed: {e}", file=sys.stderr)
+            _log(f"watchdog push failed: {e}")
+
+    def on_modified(self, event):
+        self._push(event.src_path)
+
+    def on_created(self, event):
+        self._push(event.src_path)
+
+    def on_moved(self, event):
+        self._push(event.dest_path)
 
 
 def _idle_loop(window_ref):
