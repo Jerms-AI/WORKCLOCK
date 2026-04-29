@@ -4,9 +4,15 @@ A tiny always-on-top time tracker for working across multiple projects.
 
 ## How it works
 
-A frameless amber-on-black window sits in the top-right of your screen with one row per project: project name, today's elapsed counter, and a colored dot. **Green** means idle; click it to start. **Red** means running; click it to stop, optionally typing a note when prompted. Sessions are appended to a `hours.md` file at the root of each project.
+A frameless amber-on-black window stays on top of everything. Each row shows a project's name, today's accumulated time, lifetime total, the current session counter, a start/stop dot, and a pause icon.
 
-You manage projects (add, remove, start, stop) by talking to Claude in conversation — Claude edits the app's `state.json` file directly. The window watches that file and updates instantly. There is no CLI.
+- **Green dot** → click to start a session.
+- **Red dot** → click to stop. A modal appears asking for a note; you must type one and click Save (Enter also works).
+- **Pause icon (⏸)** → green when a session is running. Click to pause: the project name, counter, and stop dot turn grey, and the pause icon turns yellow (▶). Click the yellow icon to resume.
+
+Stopping a session writes one entry to a central `Time_Worked.json`, resets the per-row counter to `0:00`, and bumps `today` and `total` for that project.
+
+You manage projects (add, remove, start, stop) by talking to Claude in conversation — Claude edits the app's `state.json` file directly. The window watches that file and updates within ~1s. There is no CLI, no settings UI.
 
 ## Launching
 
@@ -15,6 +21,8 @@ Double-click `WorkClock.bat`, or run from WSL:
 ```bash
 cmd.exe /c "C:\\Users\\Xliminal\\Code\\PersonalProjects\\WorkClock\\WorkClock.bat"
 ```
+
+To close the app: **Alt+F4** while the window is focused, or right-click its taskbar entry → Close.
 
 First-time setup (only once):
 
@@ -26,130 +34,158 @@ venv\\Scripts\\python.exe -m pip install -r requirements.txt
 
 Single-instance: re-launching when already running is a no-op.
 
+## Hardcoded defaults (no settings UI)
+
+- Always on top: **on**
+- Idle threshold (visual nudge): **15 min**
+- Window starts at **(1280, 100)** — drag it anywhere; position is not remembered between launches.
+
+If you want any of these adjustable from the UI, ask and I'll add a settings panel back.
+
 ## Where things live
 
 | Thing | Location |
 |---|---|
 | App code | `C:\Users\Xliminal\Code\PersonalProjects\WorkClock\` |
 | `state.json` (project list, running timers) | `%APPDATA%\WorkClock\state.json` |
-| `settings.json` | `%APPDATA%\WorkClock\settings.json` |
+| `Time_Worked.json` (central session log) | `%APPDATA%\WorkClock\Time_Worked.json` |
 | State lock file | `%APPDATA%\WorkClock\state.lock` |
 | Single-instance lock | `%APPDATA%\WorkClock\gui.lock` |
-| Per-project session log | `<project_root>\hours.md` |
+| Debug log | `%APPDATA%\WorkClock\debug.log` |
+| Window screenshot tool | `tools/capture.py` (used by Claude to self-verify UI state) |
 
 From WSL, `%APPDATA%` = `/mnt/c/Users/Xliminal/AppData/Roaming/`.
 
+**Privacy note:** nothing about WorkClock is written into the project directories. The session log lives entirely in `%APPDATA%\WorkClock\Time_Worked.json` so accidental client transfers, git pushes, or zip exports of a project folder never leak time data.
+
+## Display rules
+
+- The big counter on each row is **the current session only**, formatted as `H:MM`. It rounds **down to the nearest 5 minutes** for display (so the first 5 real minutes show `0:00`). Internally seconds are tracked precisely.
+- Below the project name: `today H.MM · total H.MM` — also rounded down to 5-min increments. Period is the separator (e.g. `today 2.15` means 2 hours 15 minutes).
+- `today` resets at local midnight. `total` accumulates forever.
+- When a row is **paused**, name + counter + stop dot all render in dim amber. Stop is disabled. Only the yellow pause icon is interactive.
+
 ## `state.json` schema (Claude's contract)
 
-This is the file Claude edits directly to add/remove projects and start/stop timers. The schema must be honored exactly.
+This is the file Claude edits to add/remove projects and toggle timer state. Honor the schema exactly — the GUI watches the file and re-renders on change.
 
 ```json
 {
   "today": "2026-04-29",
   "projects": [
     {
-      "name": "GLORIA",
-      "path": "C:\\Users\\Xliminal\\Code\\PersonalProjects\\Gloria",
+      "name": "ASANDRA_POC",
+      "path": "\\\\wsl$\\Ubuntu\\home\\jermsai\\Clients\\AMD\\Asandra_POC",
       "running": false,
+      "paused": false,
       "started_at": null,
-      "today_seconds": 0
+      "session_seconds": 0,
+      "today_seconds": 0,
+      "total_seconds": 0
     },
     {
-      "name": "WTF_IS_PHYSICS",
-      "path": "\\\\wsl$\\Ubuntu\\home\\jermsai\\Code\\WTF_Is_Physics",
+      "name": "GLORIA",
+      "path": "\\\\wsl$\\Ubuntu\\home\\jermsai\\Clients\\Gloria",
       "running": true,
+      "paused": false,
       "started_at": "2026-04-29T13:42:11-05:00",
-      "today_seconds": 4980
+      "session_seconds": 0,
+      "today_seconds": 4980,
+      "total_seconds": 117300
     }
   ]
 }
 ```
 
-**Fields:**
+**Top level:**
+- `today` — local date (`YYYY-MM-DD`) the `today_seconds` totals correspond to. On read, if this differs from the system date, all `today_seconds` reset to 0 and `today` advances.
 
-- `today` — local date (`YYYY-MM-DD`) the `today_seconds` totals correspond to. On read, if this differs from the system date, all `today_seconds` reset to 0 and `today` advances to the system date.
-- `projects[].name` — UPPERCASE display + lookup key. Generated from folder basename.
-- `projects[].path` — Windows-readable path. Either `C:\...` (Windows-side) or `\\wsl$\Ubuntu\...` (Linux-side).
-- `projects[].running` — boolean.
-- `projects[].started_at` — ISO 8601 with timezone offset (e.g. `2026-04-29T13:42:11-05:00`) when running. `null` otherwise.
-- `projects[].today_seconds` — integer seconds accumulated for `today`, *not counting* the current session if running.
+**Per project:**
+- `name` — UPPERCASE display + lookup key. Generated from folder basename.
+- `path` — Windows-readable path. Either `C:\...` (Windows-side) or `\\wsl$\Ubuntu\...` (Linux-side via WSL).
+- `running` — true when the timer is actively counting.
+- `paused` — true when the session is paused (frozen, but considered in-progress).
+- `started_at` — ISO 8601 with timezone (e.g. `2026-04-29T13:42:11-05:00`) when running. `null` otherwise (idle or paused).
+- `session_seconds` — accumulated seconds of the *current* session that aren't currently being counted (i.e., everything before the most recent resume; 0 for a fresh start).
+- `today_seconds` — committed seconds for `today`, *not* counting the in-progress session. Bumped on stop.
+- `total_seconds` — lifetime committed seconds, *not* counting the in-progress session. Bumped on stop.
+
+### State invariants
+
+| State | running | paused | started_at | session_seconds |
+|---|---|---|---|---|
+| idle | false | false | null | 0 |
+| running | true | false | ISO timestamp | accumulated from prior pauses (0 if first) |
+| paused | false | true | null | total elapsed before pause |
+
+The current displayed counter is computed as: `session_seconds + (now − started_at if running else 0)`. Stop sums that into `today_seconds` and `total_seconds`, then resets `session_seconds` and clears `started_at`.
 
 ### How Claude mutates `state.json`
 
 1. Read `state.json`.
-2. Modify the JSON in place (add/remove a project, toggle `running`, set/clear `started_at`).
-3. Write atomically: write to `state.json.tmp`, then rename to `state.json` (the `Edit` tool's atomic write semantics are sufficient — it does not need to take the filelock).
+2. Modify the JSON in place.
+3. Write atomically (the `Edit` tool's atomic write semantics are sufficient).
 4. The GUI watcher detects the change within ~200ms and re-renders.
 
 **Adding a project:**
-- Append a new `projects[]` entry. Set `running: false`, `started_at: null`, `today_seconds: 0`.
-- Convert any `/home/jermsai/...` path to `\\wsl$\Ubuntu\home\jermsai\...`. Convert any `/mnt/c/...` path to `C:\...`.
-- After saving state.json, also create `hours.md` at the project root (with header `# Hours — <DisplayName>`) if it doesn't exist.
+- Append a new `projects[]` entry. Use the defaults from the schema above (all booleans false, all counters 0).
+- Convert `/home/jermsai/...` → `\\wsl$\Ubuntu\home\jermsai\...`. Convert `/mnt/c/...` → `C:\...`.
+- No file is created in the project's own directory.
 
-**Starting a timer:**
-- Set `running: true`, `started_at` = current ISO timestamp with timezone.
+**Starting a timer (idle → running):**
+- Set `running: true`, `paused: false`, `started_at` = now, `session_seconds: 0`.
 
-**Stopping a timer (and logging to hours.md):**
-1. Compute `elapsed_seconds = now - started_at`.
-2. Add `elapsed_seconds` to `today_seconds`.
-3. Set `running: false`, `started_at: null`.
-4. Append the session bullet to `<path>/hours.md` (see "hours.md format" below).
+**Pausing (running → paused):** *(prefer using the GUI button — but documented for completeness)*
+- Compute `delta = now - started_at`. Add to `session_seconds`.
+- Set `running: false`, `paused: true`, `started_at: null`.
 
-## `hours.md` format
+**Resuming (paused → running):**
+- Set `running: true`, `paused: false`, `started_at` = now. Leave `session_seconds` intact.
 
-```markdown
-# Hours — Gloria
+**Stopping (any active state → idle, with note):**
+- Compute `elapsed = session_seconds + (now - started_at if running else 0)`.
+- Add `elapsed` to `today_seconds` and `total_seconds`.
+- Reset `running: false`, `paused: false`, `started_at: null`, `session_seconds: 0`.
+- Append a new entry to `Time_Worked.json` (see format below).
 
-## 2026-04-29
-- 09:15–11:43 (2h 28m) — auth refactor
-- 13:30–15:00 (1h 30m)
+## `Time_Worked.json` format
 
-## 2026-04-28
-- 10:00–12:15 (2h 15m) — initial build
-```
-
-**Rules:**
-
-- Header line: `# Hours — <DisplayName>` (folder basename, normal case).
-- Day sections: `## YYYY-MM-DD`, sorted **descending** (newest day on top).
-- Bullets within a day: sorted **ascending** by start time.
-- Time format: 24-hour local, `HH:MM`.
-- En-dash between start and stop: `09:15–11:43`.
-- Duration: `Xh Ym` if total ≥ 60 minutes, else `Ym` (e.g. `45m`, `2h 5m`). Seconds are truncated, not rounded.
-- Note (optional): separated from duration by ` — ` (em-dash with spaces).
-- **Sessions crossing midnight** are filed under the *start* date.
-
-### Duration math
-
-```
-elapsed_seconds = (stop - start).total_seconds()
-total_minutes = elapsed_seconds // 60
-hours = total_minutes // 60
-minutes = total_minutes % 60
-result = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
-```
-
-## `settings.json`
+A single JSON array at `%APPDATA%\WorkClock\Time_Worked.json`. One object per stopped session, oldest first.
 
 ```json
-{
-  "always_on_top": true,
-  "idle_threshold_minutes": 15,
-  "remember_window_position": true,
-  "window_position": [1280, 100]
-}
+[
+  {
+    "project": "ASANDRA_POC",
+    "date": "2026-04-29",
+    "start": "2026-04-29T11:33:03.656971-04:00",
+    "stop": "2026-04-29T11:33:06.475252-04:00",
+    "duration_seconds": 2,
+    "note": "stuff 1"
+  }
+]
 ```
 
-Edit via the gear icon in the window. Missing keys merge with defaults on read.
+**Fields:**
+- `project` — the UPPERCASE name from `state.json`.
+- `date` — local date of the session START (`YYYY-MM-DD`). Sessions crossing midnight are filed under the start date.
+- `start`, `stop` — ISO 8601 with timezone offset.
+- `duration_seconds` — integer; precise (not 5-min-rounded). Equals `stop - start` minus any paused intervals (since pauses don't accumulate while frozen).
+- `note` — string the user typed, or `null` if blank/skipped.
+
+**Append rules:**
+- File is created (as `[]`) on app startup if missing.
+- Append, never insert or sort. Order is chronological by stop time.
+- Atomic write: write `Time_Worked.json.tmp`, then rename.
 
 ## Recovery behavior
 
-**Crash recovery:** if `state.json` says a timer is `running` with a `started_at` that predates the system boot or the `state.json` modification time, the GUI shows that row in a recovery state with two buttons:
+There is no automatic crash recovery in v1. If the GUI dies mid-session (force-killed, PC restart), the in-memory session is lost: `today_seconds` and `total_seconds` are *not* updated, and no `Time_Worked.json` entry is written. On next launch, the project shows whatever last-committed values were on disk.
 
-- **Stop at \<time\>** — uses `max(boot_time, state.json mtime)` as the stop time, appends to `hours.md` with the note `(recovered)`, and clears the running state.
-- **Resume** — leaves the timer running with the original `started_at`.
+If you discover a missing session after the fact, ask Claude to append an entry to `Time_Worked.json` manually.
 
-**Long-session warning:** if a timer has been running 12+ hours, the row gets a yellow left border. No prompt, no auto-action.
+## Drag
+
+The window is fully draggable from anywhere on the body that isn't a button or input. Implemented via Win32 `SetWindowPos` polling on a background Python thread, since pywebview's CSS-based drag and `easy_drag` don't work reliably with the WebView2 backend.
 
 ## Tests
 
@@ -164,10 +200,14 @@ Or from WSL:
 /mnt/c/Users/Xliminal/Code/PersonalProjects/WorkClock/venv/Scripts/python.exe -m pytest tests/ -v
 ```
 
+Coverage: path normalization, state read/mutate/atomic-write/today-rollover/legacy-backfill, `Time_Worked.json` append. UI behavior is verified manually + via Claude's screenshot tool (`tools/capture.py`).
+
 ## Out of scope (v1)
 
 - Reporting, summing, or analytics commands. Ask Claude to summarize.
 - Git-commit or calendar reconciliation. Done ad-hoc by asking Claude.
+- Crash recovery (auto-stop or auto-resume of an interrupted session).
 - Notifications (toast/sound).
 - Pomodoro / forced breaks.
+- Settings UI for always-on-top, idle threshold, or window position.
 - Mobile, web, cross-platform.
