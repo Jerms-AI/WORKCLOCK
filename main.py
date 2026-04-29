@@ -179,6 +179,36 @@ class API:
             self._pending_session[name] = captured
         return new_state
 
+    def pause_all(self) -> dict:
+        """Pause every running project at once."""
+        now = _now()
+
+        def mut(s):
+            for p in s["projects"]:
+                if p["running"] and not p["paused"]:
+                    started_iso = p.get("started_at")
+                    if started_iso:
+                        elapsed = max(0, int((now - datetime.fromisoformat(started_iso)).total_seconds()))
+                        p["session_seconds"] += elapsed
+                    p["running"] = False
+                    p["paused"] = True
+                    p["started_at"] = None
+
+        return state.mutate_state(mut)
+
+    def resume_all(self) -> dict:
+        """Resume every paused project at once."""
+        now = _now()
+
+        def mut(s):
+            for p in s["projects"]:
+                if p["paused"]:
+                    p["running"] = True
+                    p["paused"] = False
+                    p["started_at"] = now.isoformat()
+
+        return state.mutate_state(mut)
+
     def attach_note(self, name: str, note: str) -> None:
         info = self._pending_session.pop(name, None)
         if not info:

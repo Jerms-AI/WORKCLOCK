@@ -34,9 +34,33 @@ function sessionElapsedSeconds(p) {
   return elapsed;
 }
 
+function updatePauseAllBtn() {
+  const btn = document.getElementById('pause-all-btn');
+  if (!btn) return;
+  const anyRunning = state.projects.some(p => p.running);
+  const anyPaused = state.projects.some(p => p.paused);
+  if (anyRunning) {
+    btn.textContent = '⏸';
+    btn.title = 'Pause all';
+    btn.disabled = false;
+    btn.style.color = 'var(--green)';
+  } else if (anyPaused) {
+    btn.textContent = '▶';
+    btn.title = 'Resume all';
+    btn.disabled = false;
+    btn.style.color = 'var(--warn)';
+  } else {
+    btn.textContent = '⏸';
+    btn.title = 'No active timers';
+    btn.disabled = true;
+    btn.style.color = 'var(--fg-dim)';
+  }
+}
+
 function render() {
   const rowsEl = document.getElementById('rows');
   rowsEl.innerHTML = '';
+  updatePauseAllBtn();
 
   if (state.projects.length === 0) {
     const empty = document.createElement('div');
@@ -219,6 +243,20 @@ setInterval(async () => {
 document.addEventListener('DOMContentLoaded', () => {
   wireDrag();
   wireModal();
+
+  const pauseAllBtn = document.getElementById('pause-all-btn');
+  if (pauseAllBtn) {
+    pauseAllBtn.addEventListener('click', async () => {
+      if (modalOpenFor) return;
+      const anyRunning = state.projects.some(p => p.running);
+      if (anyRunning) {
+        await pywebview.api.pause_all();
+      } else {
+        await pywebview.api.resume_all();
+      }
+    });
+  }
+
   if (window.pywebview && window.pywebview.api) {
     pywebview.api.get_state().then((s) => {
       state = s;

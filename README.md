@@ -275,6 +275,15 @@ The original spec is at `docs/superpowers/specs/2026-04-29-workclock-design.md` 
 - **`%APPDATA%` from WSL** = `/mnt/c/Users/Xliminal/AppData/Roaming/`. The screenshot tool needs Windows paths (`C:\...`) since it runs under Windows Python.
 - **Self-verify with screenshots:** `./venv/Scripts/python.exe tools/capture.py "C:\Users\Xliminal\AppData\Roaming\WorkClock\_screenshot.png"` — saves a PNG of the live window which you can `Read` to actually see what's on screen.
 
+## Future UI concepts (backlog)
+
+Brainstormed alternatives to the current design — not scheduled, just ideas worth revisiting:
+
+- **Odometer rolls** — digits tumble upward mechanically when a minute ticks, like a car odometer. Satisfying once per minute, silent otherwise. Fits the existing amber-on-black character.
+- **Breathing pill** — each project is a slim rounded capsule. The active one pulses a slow, barely-perceptible amber glow (3–4s cycle). No animation on the number — the ambient warmth signals something is alive.
+- **Slim sidebar strip** — narrow vertical bar (~70px) pinned to a screen edge. Projects as small labeled dots, almost invisible. Expands on hover to show controls.
+- **Cassette counter** — narrow window, time shown as a 3-drum mechanical cylinder (H · MM) rendered in CSS 3D. Only the active project shows the rolling drum; idle ones are flat text.
+
 ## Out of scope (v1)
 
 - Reporting, summing, or analytics commands. Ask Claude to summarize.
