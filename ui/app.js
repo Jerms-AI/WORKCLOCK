@@ -4,7 +4,6 @@ let state = { today: null, projects: [] };
 let idleSeconds = 0;
 let idleThreshold = 15 * 60;
 let openNoteFor = null;
-let pendingTrim = {};
 
 function fmtCounter(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -36,8 +35,6 @@ function render() {
     const row = document.createElement('div');
     row.className = 'row';
     if (p.running) row.classList.add('running');
-    if (p.recovery) row.classList.add('recovery');
-    if (p.long_session) row.classList.add('long-session');
     if (p.running && idleSeconds >= idleThreshold) row.classList.add('idle-dim');
 
     const name = document.createElement('span');
@@ -50,50 +47,21 @@ function render() {
     counter.textContent = fmtCounter(elapsedSecondsForProject(p));
     row.appendChild(counter);
 
-    if (p.recovery) {
-      const placeholder = document.createElement('span');
-      row.appendChild(placeholder);
-
-      const actions = document.createElement('div');
-      actions.className = 'recovery-actions';
-
-      const stopBtn = document.createElement('button');
-      stopBtn.className = 'text-btn';
-      stopBtn.textContent = `Stop at ${new Date(p.proposed_stop_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`;
-      stopBtn.addEventListener('click', async () => {
-        await pywebview.api.recovery_stop(p.name);
-      });
-
-      const resumeBtn = document.createElement('button');
-      resumeBtn.className = 'text-btn';
-      resumeBtn.textContent = 'Resume';
-      resumeBtn.addEventListener('click', async () => {
-        await pywebview.api.recovery_resume(p.name);
-      });
-
-      actions.appendChild(stopBtn);
-      actions.appendChild(resumeBtn);
-      row.appendChild(actions);
-    } else {
-      const dot = document.createElement('button');
-      dot.className = 'dot ' + (p.running ? 'red' : 'green');
-      if (p.running && idleSeconds >= idleThreshold) dot.classList.add('pulsing');
-      dot.addEventListener('click', async () => {
-        if (!p.running) {
-          await pywebview.api.start_timer(p.name);
-        } else {
-          await pywebview.api.stop_timer(p.name);
-          openNoteFor = p.name;
-          if (idleSeconds >= idleThreshold) {
-            pendingTrim[p.name] = new Date(Date.now() - idleSeconds * 1000).toISOString();
-          }
-          render();
-          const inputEl = document.querySelector(`input[data-note-for="${p.name}"]`);
-          if (inputEl) inputEl.focus();
-        }
-      });
-      row.appendChild(dot);
-    }
+    const dot = document.createElement('button');
+    dot.className = 'dot ' + (p.running ? 'red' : 'green');
+    if (p.running && idleSeconds >= idleThreshold) dot.classList.add('pulsing');
+    dot.addEventListener('click', async () => {
+      if (!p.running) {
+        await pywebview.api.start_timer(p.name);
+      } else {
+        await pywebview.api.stop_timer(p.name);
+        openNoteFor = p.name;
+        render();
+        const inputEl = document.querySelector(`input[data-note-for="${p.name}"]`);
+        if (inputEl) inputEl.focus();
+      }
+    });
+    row.appendChild(dot);
 
     rowsEl.appendChild(row);
 
@@ -112,44 +80,17 @@ function render() {
 
       input.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter') {
-          await pywebview.api.attach_note(p.name, input.value, false);
+          await pywebview.api.attach_note(p.name, input.value);
           openNoteFor = null;
-          delete pendingTrim[p.name];
           render();
         } else if (e.key === 'Escape') {
-          await pywebview.api.attach_note(p.name, '', false);
+          await pywebview.api.attach_note(p.name, '');
           openNoteFor = null;
-          delete pendingTrim[p.name];
           render();
         }
       });
 
       noteWrap.appendChild(input);
-
-      if (pendingTrim[p.name]) {
-        const trimTime = new Date(pendingTrim[p.name]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-        const keepBtn = document.createElement('button');
-        keepBtn.className = 'text-btn';
-        keepBtn.textContent = 'keep';
-        keepBtn.addEventListener('click', async () => {
-          await pywebview.api.attach_note(p.name, input.value, false);
-          openNoteFor = null;
-          delete pendingTrim[p.name];
-          render();
-        });
-        const trimBtn = document.createElement('button');
-        trimBtn.className = 'text-btn';
-        trimBtn.textContent = `trim ${trimTime}`;
-        trimBtn.addEventListener('click', async () => {
-          await pywebview.api.attach_note(p.name, input.value, true);
-          openNoteFor = null;
-          delete pendingTrim[p.name];
-          render();
-        });
-        noteWrap.appendChild(keepBtn);
-        noteWrap.appendChild(trimBtn);
-      }
-
       wrap.appendChild(noteWrap);
       rowsEl.appendChild(wrap);
     }
@@ -166,29 +107,6 @@ window.setIdle = function (seconds, thresholdSeconds) {
   idleThreshold = thresholdSeconds;
   render();
 };
-
-function wireSettings() {
-  const panel = document.getElementById('settings-panel');
-  const btn = document.getElementById('settings-btn');
-  const aot = document.getElementById('setting-always-on-top');
-  const idle = document.getElementById('setting-idle-threshold');
-
-  btn.addEventListener('click', async () => {
-    if (panel.hidden) {
-      const s = await pywebview.api.get_settings();
-      aot.checked = s.always_on_top;
-      idle.value = s.idle_threshold_minutes;
-    }
-    panel.hidden = !panel.hidden;
-  });
-
-  aot.addEventListener('change', () => pywebview.api.update_setting('always_on_top', aot.checked));
-  idle.addEventListener('change', () => pywebview.api.update_setting('idle_threshold_minutes', parseInt(idle.value, 10) || 15));
-
-  document.getElementById('add-btn').addEventListener('click', () => {
-    // No-op in v1; tooltip explains
-  });
-}
 
 function wireDrag() {
   const isInteractive = (el) => {
@@ -212,7 +130,6 @@ setInterval(() => {
   render();
 }, 1000);
 
-// Safety-net polling: re-pull state every 3s in case the watchdog push misses an event.
 setInterval(async () => {
   if (!window.pywebview || !window.pywebview.api) return;
   try {
@@ -225,15 +142,10 @@ setInterval(async () => {
 }, 3000);
 
 document.addEventListener('DOMContentLoaded', () => {
-  wireSettings();
   wireDrag();
   if (window.pywebview && window.pywebview.api) {
     pywebview.api.get_state().then((s) => {
       state = s;
-      render();
-    });
-    pywebview.api.get_settings().then((s) => {
-      idleThreshold = (s.idle_threshold_minutes || 15) * 60;
       render();
     });
   }

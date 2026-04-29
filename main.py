@@ -8,22 +8,25 @@ import os
 import sys
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
-import psutil
 import webview
 from filelock import FileLock, Timeout
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from workclock import hours, idle, recovery, settings, state
+from workclock import state, time_worked
+from workclock import idle as idle_mod
 from workclock.paths import normalize_path
 
 UI_DIR = Path(__file__).parent / "ui"
 INDEX = (UI_DIR / "window.html").as_uri()
 
 WINDOW_TITLE = "WorkClock"
+ALWAYS_ON_TOP = True
+IDLE_THRESHOLD_SECONDS = 15 * 60
+
 HWND_TOPMOST = -1
 HWND_NOTOPMOST = -2
 SWP_NOSIZE = 0x0001
@@ -36,7 +39,6 @@ DEBUG_LOG = Path(os.environ.get("APPDATA", "")) / "WorkClock" / "debug.log"
 
 
 def _log(msg: str) -> None:
-    """Append a debug line with timestamp. Used to diagnose the running app from outside."""
     try:
         DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
         with open(DEBUG_LOG, "a", encoding="utf-8") as f:
@@ -45,8 +47,11 @@ def _log(msg: str) -> None:
         pass
 
 
+def _now() -> datetime:
+    return datetime.now().astimezone()
+
+
 def _find_workclock_hwnd() -> int:
-    """Find the WorkClock HWND by enumerating top-level windows by title."""
     matches: list[int] = []
 
     @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
@@ -65,81 +70,102 @@ def _find_workclock_hwnd() -> int:
     return matches[0] if matches else 0
 
 
-def _set_always_on_top(enable: bool) -> None:
-    """Apply always-on-top via Win32 SetWindowPos (pywebview's runtime toggle is unreliable)."""
-    hwnd = _find_workclock_hwnd()
-    _log(f"_set_always_on_top enable={enable} hwnd={hwnd}")
-    if not hwnd:
-        return
-    try:
-        flag = HWND_TOPMOST if enable else HWND_NOTOPMOST
-        result = ctypes.windll.user32.SetWindowPos(
-            hwnd, flag, 0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        )
-        _log(f"SetWindowPos result={result}")
-    except OSError as e:
-        _log(f"SetWindowPos OSError: {e}")
-
-
-def _now() -> datetime:
-    return datetime.now().astimezone()
-
-
-def _state_with_recovery_flags() -> dict:
-    """Read state and decorate each project with recovery + long_session flags."""
-    s = state.read_state()
-    sf = state._state_file()
-    state_mtime = (
-        datetime.fromtimestamp(sf.stat().st_mtime, tz=timezone.utc)
-        if sf.exists() else _now()
-    )
-    boot_time = datetime.fromtimestamp(psutil.boot_time(), tz=timezone.utc)
-    now = _now()
-
-    rec_items = recovery.check_recovery(s, now=now, boot_time=boot_time, state_mtime=state_mtime)
-    rec_by_name = {r.name: r for r in rec_items}
-
-    for p in s["projects"]:
-        if p["name"] in rec_by_name:
-            r = rec_by_name[p["name"]]
-            p["recovery"] = True
-            p["proposed_stop_time"] = r.proposed_stop_time.isoformat()
-        else:
-            p["recovery"] = False
-        p["long_session"] = recovery.is_long_session(p, now=now)
-    return s
-
-
 class API:
     """JS-callable methods. All return JSON-serializable data."""
 
     def __init__(self, window_ref):
         self._window_ref = window_ref
-        self._pending_session = {}
+        self._pending_session: dict[str, dict] = {}
         self._dragging = False
 
     def get_state(self) -> dict:
-        return _state_with_recovery_flags()
+        return state.read_state()
 
-    def get_settings(self) -> dict:
-        return settings.read_settings()
+    def add_project(self, raw_path: str, name: str | None = None) -> dict:
+        win_path = normalize_path(raw_path)
+        display_name = name or Path(raw_path.replace("\\", "/")).name
+        upper_name = display_name.upper().replace(" ", "_")
 
-    def update_setting(self, key: str, value) -> dict:
-        s = settings.read_settings()
-        s[key] = value
-        settings.write_settings(s)
-        if key == "always_on_top":
-            _set_always_on_top(bool(value))
-        return s
+        def mut(s):
+            for p in s["projects"]:
+                if p["name"] == upper_name:
+                    return
+            s["projects"].append({
+                "name": upper_name,
+                "path": win_path,
+                "running": False,
+                "started_at": None,
+                "today_seconds": 0,
+            })
+
+        new_state = state.mutate_state(mut)
+
+        project_dir = Path(win_path)
+        if project_dir.exists():
+            try:
+                time_worked.ensure_log_exists(project_dir)
+            except OSError as e:
+                _log(f"ensure_log_exists failed: {e}")
+
+        return new_state
+
+    def remove_project(self, name: str) -> dict:
+        def mut(s):
+            s["projects"] = [p for p in s["projects"] if p["name"] != name]
+        return state.mutate_state(mut)
+
+    def start_timer(self, name: str) -> dict:
+        now = _now()
+
+        def mut(s):
+            for p in s["projects"]:
+                if p["name"] == name and not p["running"]:
+                    p["running"] = True
+                    p["started_at"] = now.isoformat()
+        return state.mutate_state(mut)
+
+    def stop_timer(self, name: str) -> dict:
+        """Stop the timer; capture session info for attach_note to finalize."""
+        now = _now()
+        captured: dict = {}
+
+        def mut(s):
+            for p in s["projects"]:
+                if p["name"] == name and p["running"]:
+                    started_iso = p["started_at"]
+                    captured["started_at"] = started_iso
+                    captured["stopped_at"] = now.isoformat()
+                    captured["path"] = p["path"]
+                    captured["project_name"] = p["name"]
+                    started = datetime.fromisoformat(started_iso)
+                    elapsed = max(0, int((now - started).total_seconds()))
+                    p["today_seconds"] += elapsed
+                    p["running"] = False
+                    p["started_at"] = None
+
+        new_state = state.mutate_state(mut)
+        if captured:
+            self._pending_session[name] = captured
+        return new_state
+
+    def attach_note(self, name: str, note: str) -> None:
+        info = self._pending_session.pop(name, None)
+        if not info:
+            return
+        start = datetime.fromisoformat(info["started_at"])
+        stop = datetime.fromisoformat(info["stopped_at"])
+        try:
+            time_worked.append_session(
+                Path(info["path"]),
+                info["project_name"],
+                start,
+                stop,
+                note.strip() if note and note.strip() else None,
+            )
+        except Exception as e:
+            _log(f"append_session failed: {e}")
 
     def start_drag(self) -> None:
-        """Begin a Python-side drag loop that follows the cursor until mouse button is released.
-
-        The standard WM_NCLBUTTONDOWN trick fails here because the JS API call is async and the
-        mouse button is no longer pressed by the time Python sends the message. So we poll the
-        cursor position and the LBUTTON state directly, moving the window each tick.
-        """
         if self._dragging:
             return
         self._dragging = True
@@ -166,7 +192,6 @@ class API:
 
             ticks = 0
             while self._dragging:
-                # Stop if mouse button released anywhere
                 if not (ctypes.windll.user32.GetAsyncKeyState(VK_LBUTTON) & 0x8000):
                     break
                 try:
@@ -184,147 +209,6 @@ class API:
 
         threading.Thread(target=loop, daemon=True).start()
 
-    def add_project(self, raw_path: str, name: str | None = None) -> dict:
-        win_path = normalize_path(raw_path)
-        display_name = name or Path(raw_path.replace("\\", "/")).name
-        upper_name = display_name.upper().replace(" ", "_")
-
-        def mut(s):
-            for p in s["projects"]:
-                if p["name"] == upper_name:
-                    return
-            s["projects"].append({
-                "name": upper_name,
-                "path": win_path,
-                "running": False,
-                "started_at": None,
-                "today_seconds": 0,
-            })
-
-        new_state = state.mutate_state(mut)
-
-        project_dir = Path(win_path)
-        if project_dir.exists():
-            hours_file = project_dir / "hours.md"
-            if not hours_file.exists():
-                hours_file.write_text(f"# Hours — {display_name}\n", encoding="utf-8")
-
-        return new_state
-
-    def remove_project(self, name: str) -> dict:
-        def mut(s):
-            s["projects"] = [p for p in s["projects"] if p["name"] != name]
-        return state.mutate_state(mut)
-
-    def start_timer(self, name: str) -> dict:
-        now = _now()
-
-        def mut(s):
-            for p in s["projects"]:
-                if p["name"] == name and not p["running"]:
-                    p["running"] = True
-                    p["started_at"] = now.isoformat()
-        return state.mutate_state(mut)
-
-    def stop_timer(self, name: str) -> dict:
-        now = _now()
-        captured = {}
-
-        def mut(s):
-            for p in s["projects"]:
-                if p["name"] == name and p["running"]:
-                    started_iso = p["started_at"]
-                    captured["started_at"] = started_iso
-                    captured["stopped_at"] = now.isoformat()
-                    captured["path"] = p["path"]
-                    captured["display_name"] = Path(p["path"].replace("\\", "/")).name
-                    started = datetime.fromisoformat(started_iso)
-                    elapsed = max(0, int((now - started).total_seconds()))
-                    p["today_seconds"] += elapsed
-                    p["running"] = False
-                    p["started_at"] = None
-
-        new_state = state.mutate_state(mut)
-        if captured:
-            self._pending_session[name] = captured
-        return new_state
-
-    def attach_note(self, name: str, note: str, trim_to_idle: bool) -> None:
-        info = self._pending_session.pop(name, None)
-        if not info:
-            return
-        start = datetime.fromisoformat(info["started_at"])
-        stop = datetime.fromisoformat(info["stopped_at"])
-
-        if trim_to_idle:
-            idle_secs = idle.get_idle_seconds()
-            trim_to = _now() - timedelta(seconds=idle_secs)
-            if trim_to > start:
-                old_elapsed = int((stop - start).total_seconds())
-                new_elapsed = int((trim_to - start).total_seconds())
-                delta = new_elapsed - old_elapsed
-
-                def mut(s):
-                    for p in s["projects"]:
-                        if p["name"] == name:
-                            p["today_seconds"] = max(0, p["today_seconds"] + delta)
-                state.mutate_state(mut)
-                stop = trim_to
-
-        try:
-            hours.append_session(
-                Path(info["path"]),
-                info["display_name"],
-                start,
-                stop,
-                note.strip() if note and note.strip() else None,
-            )
-        except Exception as e:
-            print(f"[WorkClock] failed to append hours.md: {e}", file=sys.stderr)
-
-    def recovery_stop(self, name: str) -> dict:
-        now = _now()
-        sf_mtime = (
-            datetime.fromtimestamp(state._state_file().stat().st_mtime, tz=timezone.utc).astimezone()
-            if state._state_file().exists() else now
-        )
-        boot = datetime.fromtimestamp(psutil.boot_time(), tz=timezone.utc).astimezone()
-        proposed = max(boot, sf_mtime)
-
-        captured = {}
-
-        def mut(s):
-            for p in s["projects"]:
-                if p["name"] == name and p["running"]:
-                    started = datetime.fromisoformat(p["started_at"])
-                    captured["started_at"] = p["started_at"]
-                    captured["path"] = p["path"]
-                    captured["display_name"] = Path(p["path"].replace("\\", "/")).name
-                    elapsed = max(0, int((proposed - started).total_seconds()))
-                    p["today_seconds"] += elapsed
-                    p["running"] = False
-                    p["started_at"] = None
-
-        state.mutate_state(mut)
-        if captured:
-            try:
-                hours.append_session(
-                    Path(captured["path"]),
-                    captured["display_name"],
-                    datetime.fromisoformat(captured["started_at"]),
-                    proposed,
-                    note="(recovered)",
-                )
-            except Exception as e:
-                print(f"[WorkClock] recovery append failed: {e}", file=sys.stderr)
-        return _state_with_recovery_flags()
-
-    def recovery_resume(self, name: str) -> dict:
-        def mut(s):
-            pass
-        state.mutate_state(mut)
-        return _state_with_recovery_flags()
-
 
 class StateChangeHandler(FileSystemEventHandler):
     def __init__(self, window_ref):
@@ -339,7 +223,7 @@ class StateChangeHandler(FileSystemEventHandler):
             return
         self._last_push = now
         try:
-            s = _state_with_recovery_flags()
+            s = state.read_state()
             _log(f"watchdog push projects={len(s.get('projects', []))}")
             if self._window_ref[0]:
                 self._window_ref[0].evaluate_js(f"window.setState({json.dumps(s)})")
@@ -360,12 +244,10 @@ def _idle_loop(window_ref):
     while True:
         time.sleep(30)
         try:
-            s = settings.read_settings()
-            threshold_seconds = int(s.get("idle_threshold_minutes", 15)) * 60
-            idle_secs = idle.get_idle_seconds()
+            idle_secs = idle_mod.get_idle_seconds()
             if window_ref[0]:
                 window_ref[0].evaluate_js(
-                    f"window.setIdle({idle_secs}, {threshold_seconds})"
+                    f"window.setIdle({idle_secs}, {IDLE_THRESHOLD_SECONDS})"
                 )
         except Exception:
             pass
@@ -385,8 +267,6 @@ def _enforce_single_instance() -> FileLock:
 def main():
     gui_lock = _enforce_single_instance()
 
-    s = settings.read_settings()
-
     window_ref = [None]
     api = API(window_ref)
 
@@ -398,7 +278,7 @@ def main():
         height=400,
         x=1280,
         y=100,
-        on_top=bool(s.get("always_on_top", True)),
+        on_top=ALWAYS_ON_TOP,
         frameless=True,
         easy_drag=False,
         resizable=False,
