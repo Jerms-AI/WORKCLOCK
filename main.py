@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ctypes
+import ctypes.wintypes
 import json
 import os
 import sys
@@ -27,9 +28,21 @@ HWND_TOPMOST = -1
 HWND_NOTOPMOST = -2
 SWP_NOSIZE = 0x0001
 SWP_NOMOVE = 0x0002
+SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
-WM_NCLBUTTONDOWN = 0x00A1
-HTCAPTION = 2
+VK_LBUTTON = 0x01
+
+DEBUG_LOG = Path(os.environ.get("APPDATA", "")) / "WorkClock" / "debug.log"
+
+
+def _log(msg: str) -> None:
+    """Append a debug line with timestamp. Used to diagnose the running app from outside."""
+    try:
+        DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(DEBUG_LOG, "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now().isoformat(timespec='seconds')} {msg}\n")
+    except OSError:
+        pass
 
 
 def _find_workclock_hwnd() -> int:
@@ -55,16 +68,18 @@ def _find_workclock_hwnd() -> int:
 def _set_always_on_top(enable: bool) -> None:
     """Apply always-on-top via Win32 SetWindowPos (pywebview's runtime toggle is unreliable)."""
     hwnd = _find_workclock_hwnd()
+    _log(f"_set_always_on_top enable={enable} hwnd={hwnd}")
     if not hwnd:
         return
     try:
         flag = HWND_TOPMOST if enable else HWND_NOTOPMOST
-        ctypes.windll.user32.SetWindowPos(
+        result = ctypes.windll.user32.SetWindowPos(
             hwnd, flag, 0, 0, 0, 0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
         )
-    except OSError:
-        pass
+        _log(f"SetWindowPos result={result}")
+    except OSError as e:
+        _log(f"SetWindowPos OSError: {e}")
 
 
 def _now() -> datetime:
@@ -102,6 +117,7 @@ class API:
     def __init__(self, window_ref):
         self._window_ref = window_ref
         self._pending_session = {}
+        self._dragging = False
 
     def get_state(self) -> dict:
         return _state_with_recovery_flags()
@@ -118,15 +134,55 @@ class API:
         return s
 
     def start_drag(self) -> None:
-        """Triggered by JS mousedown on non-interactive area. Hands the drag off to Windows."""
-        hwnd = _find_workclock_hwnd()
-        if not hwnd:
+        """Begin a Python-side drag loop that follows the cursor until mouse button is released.
+
+        The standard WM_NCLBUTTONDOWN trick fails here because the JS API call is async and the
+        mouse button is no longer pressed by the time Python sends the message. So we poll the
+        cursor position and the LBUTTON state directly, moving the window each tick.
+        """
+        if self._dragging:
             return
-        try:
-            ctypes.windll.user32.ReleaseCapture()
-            ctypes.windll.user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0)
-        except OSError:
-            pass
+        self._dragging = True
+        _log("start_drag")
+
+        def loop():
+            hwnd = _find_workclock_hwnd()
+            _log(f"drag loop hwnd={hwnd}")
+            if not hwnd:
+                self._dragging = False
+                return
+            rect = ctypes.wintypes.RECT()
+            pt = ctypes.wintypes.POINT()
+            try:
+                ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+                ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+            except OSError as e:
+                _log(f"drag init failed: {e}")
+                self._dragging = False
+                return
+
+            offset_x = rect.left - pt.x
+            offset_y = rect.top - pt.y
+
+            ticks = 0
+            while self._dragging:
+                # Stop if mouse button released anywhere
+                if not (ctypes.windll.user32.GetAsyncKeyState(VK_LBUTTON) & 0x8000):
+                    break
+                try:
+                    ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+                    ctypes.windll.user32.SetWindowPos(
+                        hwnd, 0, pt.x + offset_x, pt.y + offset_y, 0, 0,
+                        SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                    )
+                except OSError:
+                    break
+                ticks += 1
+                time.sleep(0.008)
+            self._dragging = False
+            _log(f"drag loop exit ticks={ticks}")
+
+        threading.Thread(target=loop, daemon=True).start()
 
     def add_project(self, raw_path: str, name: str | None = None) -> dict:
         win_path = normalize_path(raw_path)
@@ -334,7 +390,7 @@ def main():
         y=100,
         on_top=bool(s.get("always_on_top", True)),
         frameless=True,
-        easy_drag=True,
+        easy_drag=False,
         resizable=False,
         background_color="#0a0a0a",
     )
