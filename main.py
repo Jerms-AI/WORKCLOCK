@@ -98,16 +98,7 @@ class API:
                 "today_seconds": 0,
             })
 
-        new_state = state.mutate_state(mut)
-
-        project_dir = Path(win_path)
-        if project_dir.exists():
-            try:
-                time_worked.ensure_log_exists(project_dir)
-            except OSError as e:
-                _log(f"ensure_log_exists failed: {e}")
-
-        return new_state
+        return state.mutate_state(mut)
 
     def remove_project(self, name: str) -> dict:
         def mut(s):
@@ -135,7 +126,6 @@ class API:
                     started_iso = p["started_at"]
                     captured["started_at"] = started_iso
                     captured["stopped_at"] = now.isoformat()
-                    captured["path"] = p["path"]
                     captured["project_name"] = p["name"]
                     started = datetime.fromisoformat(started_iso)
                     elapsed = max(0, int((now - started).total_seconds()))
@@ -156,7 +146,6 @@ class API:
         stop = datetime.fromisoformat(info["stopped_at"])
         try:
             time_worked.append_session(
-                Path(info["path"]),
                 info["project_name"],
                 start,
                 stop,
@@ -266,6 +255,7 @@ def _enforce_single_instance() -> FileLock:
 
 def main():
     gui_lock = _enforce_single_instance()
+    time_worked.ensure_log_exists()
 
     window_ref = [None]
     api = API(window_ref)

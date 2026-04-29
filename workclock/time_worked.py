@@ -1,33 +1,47 @@
-"""Time_Worked.json: per-project log of completed sessions, JSON array."""
+"""Time_Worked.json: central log of completed sessions across ALL projects.
+
+Lives in %APPDATA%\\WorkClock\\Time_Worked.json (alongside state.json) so the per-project
+folders stay clean and nothing leaks via client transfers or git pushes.
+"""
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
 LOG_FILENAME = "Time_Worked.json"
 
 
-def log_path(project_dir: Path | str) -> Path:
-    return Path(project_dir) / LOG_FILENAME
+def _log_dir() -> Path:
+    appdata = os.environ.get("APPDATA")
+    if not appdata:
+        raise RuntimeError("APPDATA env var is not set")
+    return Path(appdata) / "WorkClock"
 
 
-def ensure_log_exists(project_dir: Path | str) -> None:
+def log_path() -> Path:
+    return _log_dir() / LOG_FILENAME
+
+
+def ensure_log_exists() -> None:
     """Create an empty JSON array file if Time_Worked.json doesn't exist yet."""
-    p = log_path(project_dir)
+    p = log_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
     if not p.exists():
         p.write_text("[]\n", encoding="utf-8")
 
 
 def append_session(
-    project_dir: Path | str,
     project_name: str,
     start: datetime,
     stop: datetime,
     note: str | None,
 ) -> None:
-    """Append a session entry to Time_Worked.json. Creates the file if absent."""
-    p = log_path(project_dir)
+    """Append a session entry to the central Time_Worked.json."""
+    p = log_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+
     if p.exists():
         try:
             entries = json.loads(p.read_text(encoding="utf-8") or "[]")
