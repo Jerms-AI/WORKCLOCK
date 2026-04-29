@@ -63,11 +63,6 @@ html, body {
   background: var(--row-divider);
 }
 
-.icon-btn.close:hover {
-  color: var(--red);
-  background: rgba(239, 68, 68, 0.15);
-}
-
 #rows {
   padding: 4px 0;
 }

@@ -173,15 +173,12 @@ function wireSettings() {
   const closeBtn = document.getElementById('settings-close');
   const aot = document.getElementById('setting-always-on-top');
   const idle = document.getElementById('setting-idle-threshold');
-  const rememberPos = document.getElementById('setting-remember-position');
-  const resetPos = document.getElementById('setting-reset-position');
 
   btn.addEventListener('click', async () => {
     if (panel.hidden) {
       const s = await pywebview.api.get_settings();
       aot.checked = s.always_on_top;
       idle.value = s.idle_threshold_minutes;
-      rememberPos.checked = s.remember_window_position;
     }
     panel.hidden = !panel.hidden;
   });
@@ -190,15 +187,9 @@ function wireSettings() {
 
   aot.addEventListener('change', () => pywebview.api.update_setting('always_on_top', aot.checked));
   idle.addEventListener('change', () => pywebview.api.update_setting('idle_threshold_minutes', parseInt(idle.value, 10) || 15));
-  rememberPos.addEventListener('change', () => pywebview.api.update_setting('remember_window_position', rememberPos.checked));
-  resetPos.addEventListener('click', () => pywebview.api.reset_window_position());
 
   document.getElementById('add-btn').addEventListener('click', () => {
     // No-op in v1; tooltip explains
-  });
-
-  document.getElementById('close-btn').addEventListener('click', () => {
-    pywebview.api.quit_app();
   });
 }
 

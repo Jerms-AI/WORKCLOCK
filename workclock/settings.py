@@ -8,8 +8,6 @@ from pathlib import Path
 DEFAULTS = {
     "always_on_top": True,
     "idle_threshold_minutes": 15,
-    "remember_window_position": True,
-    "window_position": None,
 }
 
 

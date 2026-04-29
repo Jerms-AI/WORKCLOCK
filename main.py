@@ -30,12 +30,32 @@ SWP_NOMOVE = 0x0002
 SWP_NOACTIVATE = 0x0010
 
 
+def _find_workclock_hwnd() -> int:
+    """Find the WorkClock HWND by enumerating top-level windows by title."""
+    matches: list[int] = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    def _enum_cb(hwnd, _lparam):
+        length = ctypes.windll.user32.GetWindowTextLengthW(hwnd) + 1
+        buf = ctypes.create_unicode_buffer(length)
+        ctypes.windll.user32.GetWindowTextW(hwnd, buf, length)
+        if WINDOW_TITLE in buf.value:
+            matches.append(hwnd)
+        return True
+
+    try:
+        ctypes.windll.user32.EnumWindows(_enum_cb, 0)
+    except OSError:
+        return 0
+    return matches[0] if matches else 0
+
+
 def _set_always_on_top(enable: bool) -> None:
     """Apply always-on-top via Win32 SetWindowPos (pywebview's runtime toggle is unreliable)."""
+    hwnd = _find_workclock_hwnd()
+    if not hwnd:
+        return
     try:
-        hwnd = ctypes.windll.user32.FindWindowW(None, WINDOW_TITLE)
-        if not hwnd:
-            return
         flag = HWND_TOPMOST if enable else HWND_NOTOPMOST
         ctypes.windll.user32.SetWindowPos(
             hwnd, flag, 0, 0, 0, 0,
@@ -94,20 +114,6 @@ class API:
         if key == "always_on_top":
             _set_always_on_top(bool(value))
         return s
-
-    def quit_app(self) -> None:
-        if self._window_ref[0]:
-            self._window_ref[0].destroy()
-
-    def reset_window_position(self) -> None:
-        s = settings.read_settings()
-        s["window_position"] = None
-        settings.write_settings(s)
-        if self._window_ref[0]:
-            screen = webview.screens[0] if webview.screens else None
-            x = (screen.width - 420) if screen else 1280
-            y = 100
-            self._window_ref[0].move(x, y)
 
     def add_project(self, raw_path: str, name: str | None = None) -> dict:
         win_path = normalize_path(raw_path)
@@ -286,25 +292,6 @@ def _idle_loop(window_ref):
             pass
 
 
-def _save_position_loop(window_ref):
-    while True:
-        time.sleep(5)
-        try:
-            s = settings.read_settings()
-            if not s.get("remember_window_position"):
-                continue
-            w = window_ref[0]
-            if w is None:
-                continue
-            x, y = w.x, w.y
-            current = s.get("window_position")
-            if current != [x, y]:
-                s["window_position"] = [x, y]
-                settings.write_settings(s)
-        except Exception:
-            pass
-
-
 def _enforce_single_instance() -> FileLock:
     state._state_dir().mkdir(parents=True, exist_ok=True)
     lock = FileLock(str(state._state_dir() / "gui.lock"))
@@ -320,21 +307,21 @@ def main():
     gui_lock = _enforce_single_instance()
 
     s = settings.read_settings()
-    pos = s.get("window_position") or [1280, 100]
 
     window_ref = [None]
     api = API(window_ref)
 
     window = webview.create_window(
-        "WorkClock",
+        WINDOW_TITLE,
         INDEX,
         js_api=api,
         width=420,
         height=400,
-        x=pos[0],
-        y=pos[1],
+        x=1280,
+        y=100,
         on_top=bool(s.get("always_on_top", True)),
         frameless=True,
+        easy_drag=True,
         resizable=False,
         background_color="#0a0a0a",
     )
@@ -346,7 +333,6 @@ def main():
     observer.start()
 
     threading.Thread(target=_idle_loop, args=(window_ref,), daemon=True).start()
-    threading.Thread(target=_save_position_loop, args=(window_ref,), daemon=True).start()
 
     try:
         webview.start()
