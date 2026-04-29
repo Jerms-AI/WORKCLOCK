@@ -1,11 +1,11 @@
 :root {
-  --bg: #0a0a0a;
-  --fg: #ffb347;
-  --fg-dim: #ffb34766;
-  --row-divider: #ffb34722;
-  --green: #4ade80;
-  --red: #ef4444;
-  --warn: #facc15;
+  --bg: #ffffff;
+  --fg: #111111;
+  --fg-dim: #888888;
+  --row-divider: #e8e8e8;
+  --green: #16a34a;
+  --red: #dc2626;
+  --warn: #d97706;
   --font-mono: "JetBrains Mono", "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
 }
 
@@ -141,12 +141,12 @@ input, textarea {
 
 .dot.green {
   background: var(--green);
-  box-shadow: 0 0 6px #4ade8088;
+  box-shadow: 0 0 6px #16a34a55;
 }
 
 .dot.red {
   background: var(--red);
-  box-shadow: 0 0 6px #ef444488;
+  box-shadow: 0 0 6px #dc262655;
 }
 
 .dot.grey {
@@ -178,12 +178,12 @@ input, textarea {
 
 .pause-btn.green {
   color: var(--green);
-  text-shadow: 0 0 4px #4ade8088;
+  text-shadow: 0 0 4px #16a34a44;
 }
 
 .pause-btn.yellow {
   color: var(--warn);
-  text-shadow: 0 0 4px #facc15aa;
+  text-shadow: 0 0 4px #d9770644;
 }
 
 .pause-btn.grey {
@@ -214,8 +214,8 @@ input, textarea {
 }
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 6px #ef444488; opacity: 1; }
-  50% { box-shadow: 0 0 14px #ef4444cc; opacity: 0.6; }
+  0%, 100% { box-shadow: 0 0 6px #dc262655; opacity: 1; }
+  50% { box-shadow: 0 0 14px #dc2626aa; opacity: 0.6; }
 }
 
 .note-input-wrap {
@@ -309,6 +309,9 @@ input, textarea {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background: var(--bg);
+  padding: 24px 20px;
+  border: 1px solid var(--row-divider);
 }
 
 .modal-title {

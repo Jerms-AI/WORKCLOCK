@@ -389,7 +389,7 @@ def main():
         frameless=True,
         easy_drag=False,
         resizable=False,
-        background_color="#0a0a0a",
+        background_color="#ffffff",
     )
     window_ref[0] = window
 
