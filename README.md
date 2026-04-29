@@ -202,6 +202,33 @@ Or from WSL:
 
 Coverage: path normalization, state read/mutate/atomic-write/today-rollover/legacy-backfill, `Time_Worked.json` append. UI behavior is verified manually + via Claude's screenshot tool (`tools/capture.py`).
 
+## Build history & key decisions
+
+The original spec is at `docs/superpowers/specs/2026-04-29-workclock-design.md` and the original plan is at `docs/superpowers/plans/2026-04-29-workclock-implementation.md`. **Both are partially obsolete** — the README above is the source of truth. Significant pivots from the original spec:
+
+| Change | Why |
+|---|---|
+| Removed settings UI (gear, panel) | User wanted simplification. Always-on-top + 15-min idle are hardcoded. |
+| Removed crash recovery + 12-hour warning | Adds complexity, low payoff. Lost sessions are accepted. |
+| Renamed `hours.md` → `Time_Worked.json` | Switched to structured JSON for easier programmatic sums. |
+| Moved log from project root → `%APPDATA%\WorkClock\` | Privacy: prevents accidental client transfer / git push leakage. |
+| Added pause/resume button | Real workflow — phone calls, lunch — without ending the session. |
+| Display rounded down to 5-min increments, no seconds | UI clarity. Internal tracking is still per-second. |
+| Stop resets per-row counter to `0:00` | Counter = *current session* only. `today` / `total` shown separately. |
+| Note input is a required modal overlay (no Esc skip) | Forces context-capture for every session. |
+| Drag implemented via Win32 cursor-polling thread | pywebview's `easy_drag` and CSS `-webkit-app-region: drag` don't work in the WebView2 backend. |
+| Always-on-top via Win32 `SetWindowPos` | pywebview's `Window.on_top` property only takes effect at creation, not runtime toggle. |
+| Watchdog handles `on_created` + `on_moved` (not just `on_modified`) | Atomic writes (`.tmp` + rename) generate created/moved events, not modified. JS also polls every 3s as a safety net. |
+
+## Common gotchas (for Claude in a fresh session)
+
+- **WebView2 aggressively caches HTML/CSS/JS.** After UI edits, kill the running app and relaunch — there's no "reload" on a frameless window.
+- **`pythonw.exe` spawns `python.exe` as the actual GUI process.** When killing, terminate *both*: `taskkill /F /IM python.exe && taskkill /F /IM pythonw.exe`. Failing to kill `python.exe` leaves a stale window that ignores all your code changes.
+- **Window title is exactly `"WorkClock"`** — used by `EnumWindows` lookups in `_find_workclock_hwnd` for drag and always-on-top. Don't change it.
+- **Inline-rendered DOM elements get blown away every 1s by the render loop.** The note input had to move to a modal *outside* the rows container for this reason. If you add new interactive elements, consider whether they survive re-render.
+- **`%APPDATA%` from WSL** = `/mnt/c/Users/Xliminal/AppData/Roaming/`. The screenshot tool needs Windows paths (`C:\...`) since it runs under Windows Python.
+- **Self-verify with screenshots:** `./venv/Scripts/python.exe tools/capture.py "C:\Users\Xliminal\AppData\Roaming\WorkClock\_screenshot.png"` — saves a PNG of the live window which you can `Read` to actually see what's on screen.
+
 ## Out of scope (v1)
 
 - Reporting, summing, or analytics commands. Ask Claude to summarize.
