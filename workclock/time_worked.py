@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 
 LOG_FILENAME = "Time_Worked.json"
+BACKUP_KEEP_DAYS = 30
 
 
 def _log_dir() -> Path:
@@ -30,6 +32,21 @@ def ensure_log_exists() -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     if not p.exists():
         p.write_text("[]\n", encoding="utf-8")
+
+
+def _backup(p: Path) -> None:
+    """Copy Time_Worked.json to backups/Time_Worked_YYYY-MM-DD.json, pruning old copies."""
+    backup_dir = p.parent / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    dest = backup_dir / f"Time_Worked_{today}.json"
+    shutil.copy2(p, dest)
+
+    # Prune backups older than BACKUP_KEEP_DAYS, sorted by name (date-stamped)
+    backups = sorted(backup_dir.glob("Time_Worked_*.json"))
+    for old in backups[:-BACKUP_KEEP_DAYS]:
+        old.unlink(missing_ok=True)
 
 
 def append_session(
@@ -61,4 +78,9 @@ def append_session(
         "note": note if note else None,
     })
 
-    p.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
+    # Atomic write: tmp file then rename
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(p)
+
+    _backup(p)
