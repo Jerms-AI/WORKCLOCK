@@ -28,6 +28,7 @@ def _lock_file() -> Path:
 
 
 PROJECT_DEFAULTS = {
+    "rate": 0,
     "running": False,
     "paused": False,
     "started_at": None,

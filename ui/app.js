@@ -110,6 +110,37 @@ function render() {
     const todayDisplay = (p.today_seconds || 0) + sessionElapsed;
     const totalDisplay = (p.total_seconds || 0) + sessionElapsed;
 
+    // Rate widget: ▲ / $XX / ▼
+    const rateWidget = document.createElement('div');
+    rateWidget.className = 'rate-widget';
+
+    const rateUp = document.createElement('button');
+    rateUp.className = 'rate-btn';
+    rateUp.textContent = '▲';
+    rateUp.title = '+$5/hr';
+    rateUp.addEventListener('click', async () => {
+      if (isModalOpen()) return;
+      await pywebview.api.set_rate(p.name, 5);
+    });
+
+    const rateDisplay = document.createElement('div');
+    rateDisplay.className = 'rate-display';
+    rateDisplay.textContent = '$' + (p.rate || 0);
+
+    const rateDown = document.createElement('button');
+    rateDown.className = 'rate-btn';
+    rateDown.textContent = '▼';
+    rateDown.title = '-$5/hr';
+    rateDown.addEventListener('click', async () => {
+      if (isModalOpen()) return;
+      await pywebview.api.set_rate(p.name, -5);
+    });
+
+    rateWidget.appendChild(rateUp);
+    rateWidget.appendChild(rateDisplay);
+    rateWidget.appendChild(rateDown);
+    row.appendChild(rateWidget);
+
     const nameCol = document.createElement('div');
     nameCol.className = 'name-col';
 

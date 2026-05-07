@@ -260,6 +260,14 @@ class API:
 
         return state.mutate_state(mut)
 
+    def set_rate(self, name: str, delta: int) -> dict:
+        """Adjust hourly rate for a project by delta (positive or negative), minimum 0."""
+        def mut(s):
+            for p in s["projects"]:
+                if p["name"] == name:
+                    p["rate"] = max(0, p.get("rate", 0) + delta)
+        return state.mutate_state(mut)
+
     def discard_timer(self, name: str) -> dict:
         """Reset a running/paused session without logging anything."""
         def mut(s):

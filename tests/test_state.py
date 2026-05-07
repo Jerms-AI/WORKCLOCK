@@ -16,6 +16,7 @@ def test_read_state_round_trips(tmp_appdata):
             {
                 "name": "GLORIA",
                 "path": r"C:\Users\Xliminal\Code\PersonalProjects\Gloria",
+                "rate": 0,
                 "running": False,
                 "paused": False,
                 "started_at": None,
@@ -46,6 +47,7 @@ def test_legacy_state_backfills_new_fields(tmp_appdata):
     }
     state_mod._write_state_unsafe(legacy)
     s = state_mod.read_state()
+    assert s["projects"][0]["rate"] == 0
     assert s["projects"][0]["paused"] is False
     assert s["projects"][0]["session_seconds"] == 0
     assert s["projects"][0]["total_seconds"] == 0
