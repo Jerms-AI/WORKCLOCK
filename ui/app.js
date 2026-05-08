@@ -149,6 +149,13 @@ function render() {
     name.textContent = p.name;
     nameCol.appendChild(name);
 
+    if (p.subtitle) {
+      const subtitle = document.createElement('div');
+      subtitle.className = 'subtitle';
+      subtitle.textContent = p.subtitle;
+      nameCol.appendChild(subtitle);
+    }
+
     const meta = document.createElement('div');
     meta.className = 'meta';
     meta.textContent = `today ${fmtTotalHM(todayDisplay)} · total ${fmtTotalHM(totalDisplay)}`;

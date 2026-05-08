@@ -103,6 +103,16 @@ input, textarea {
   font-size: 13px;
 }
 
+.row .subtitle {
+  font-size: 10px;
+  color: var(--fg-dim);
+  letter-spacing: 0.06em;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .row .meta {
   font-size: 10px;
   color: var(--fg-dim);

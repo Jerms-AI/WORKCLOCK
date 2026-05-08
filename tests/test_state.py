@@ -16,6 +16,7 @@ def test_read_state_round_trips(tmp_appdata):
             {
                 "name": "GLORIA",
                 "path": r"C:\Users\Xliminal\Code\PersonalProjects\Gloria",
+                "subtitle": None,
                 "rate": 0,
                 "running": False,
                 "paused": False,
