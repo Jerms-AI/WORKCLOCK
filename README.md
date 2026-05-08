@@ -49,6 +49,7 @@ If you want any of these adjustable from the UI, ask and I'll add a settings pan
 | App code | `C:\Users\Xliminal\Code\PersonalProjects\WorkClock\` |
 | `state.json` (project list, running timers) | `%APPDATA%\WorkClock\state.json` |
 | `Time_Worked.json` (central session log) | `%APPDATA%\WorkClock\Time_Worked.json` |
+| `billing.json` (payment ledger) | `%APPDATA%\WorkClock\billing.json` |
 | State lock file | `%APPDATA%\WorkClock\state.lock` |
 | Single-instance lock | `%APPDATA%\WorkClock\gui.lock` |
 | Debug log | `%APPDATA%\WorkClock\debug.log` |
@@ -147,6 +148,36 @@ The current displayed counter is computed as: `session_seconds + (now − starte
 - Add `elapsed` to `today_seconds` and `total_seconds`.
 - Reset `running: false`, `paused: false`, `started_at: null`, `session_seconds: 0`.
 - Append a new entry to `Time_Worked.json` (see format below).
+
+## `billing.json` format
+
+A payment ledger at `%APPDATA%\WorkClock\billing.json`. One object per paid invoice, oldest first. Claude appends entries when the client pays; the spreadsheet generator reads this to stamp weeks as paid or outstanding.
+
+```json
+{
+  "payments": [
+    {
+      "project": "ASANDRA_POC",
+      "period_start": "2026-04-13",
+      "period_end": "2026-05-03",
+      "paid_on": "2026-05-08",
+      "hours": 16.42,
+      "rate": 25,
+      "amount": 410.50,
+      "note": "Initial invoice — pre-WorkClock est. + first tracked week"
+    }
+  ]
+}
+```
+
+**Fields:**
+- `project` — matches the UPPERCASE name in `state.json`.
+- `period_start`, `period_end` — inclusive date range covered by this payment (`YYYY-MM-DD`).
+- `paid_on` — date payment was received.
+- `hours`, `rate`, `amount` — as invoiced.
+- `note` — free-text description.
+
+When generating a billing spreadsheet, any week whose Monday falls within a `period_start`–`period_end` range is marked **PAID**. Weeks outside all ranges are **OUTSTANDING**.
 
 ## `Time_Worked.json` format
 
