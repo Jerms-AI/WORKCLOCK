@@ -225,25 +225,19 @@ class API:
         except Exception as e:
             _log(f"append_session failed: {e}")
 
-    def reset_timer(self, name: str, stop_time_str: str, note: str | None) -> dict:
-        """Log session with adjusted stop time (HH:MM local), then reset to idle."""
+    def reset_timer(self, name: str, duration_seconds: int, note: str | None) -> dict:
+        """Log session of a user-entered duration ending now, then reset to idle."""
         now = _now()
         try:
-            h, m = map(int, stop_time_str.split(":"))
-            stop = now.replace(hour=h, minute=m, second=0, microsecond=0)
-        except (ValueError, AttributeError):
-            stop = now
+            elapsed = max(0, int(duration_seconds))
+        except (ValueError, TypeError):
+            elapsed = 0
+        stop = now
+        first_start = stop - timedelta(seconds=elapsed)
 
         def mut(s):
             for p in s["projects"]:
                 if p["name"] == name and (p["running"] or p["paused"]):
-                    elapsed_before = int(p.get("session_seconds", 0))
-                    started_iso = p.get("started_at")
-                    if started_iso:
-                        first_start = datetime.fromisoformat(started_iso) - timedelta(seconds=elapsed_before)
-                    else:
-                        first_start = stop - timedelta(seconds=elapsed_before)
-                    elapsed = max(0, int((stop - first_start).total_seconds()))
                     p["today_seconds"] += elapsed
                     p["total_seconds"] = p.get("total_seconds", 0) + elapsed
                     p["running"] = False

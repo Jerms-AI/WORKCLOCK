@@ -286,23 +286,17 @@ function openResetModal(project) {
   resetModalProject = project;
   document.getElementById('reset-subtitle').textContent = project.name;
 
-  let firstStart;
-  if (project.started_at) {
-    const resumedAt = new Date(project.started_at);
-    firstStart = new Date(resumedAt.getTime() - (project.session_seconds || 0) * 1000);
-  } else {
-    firstStart = new Date(Date.now() - (project.session_seconds || 0) * 1000);
+  let estimate = project.session_seconds || 0;
+  if (project.running && project.started_at) {
+    estimate += Math.max(0, Math.floor((Date.now() - new Date(project.started_at).getTime()) / 1000));
   }
-  document.getElementById('reset-meta').textContent =
-    'started ' + firstStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  const now = new Date();
-  document.getElementById('reset-time').value =
-    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('reset-meta').textContent = 'timer estimate — adjust to actual';
+  document.getElementById('reset-hours').value = Math.floor(estimate / 3600);
+  document.getElementById('reset-minutes').value = Math.round((estimate % 3600) / 60);
   document.getElementById('reset-note').value = '';
   document.getElementById('reset-modal').hidden = false;
   resizeForModal('reset-modal');
-  setTimeout(() => document.getElementById('reset-time').focus(), 0);
+  setTimeout(() => document.getElementById('reset-hours').select(), 0);
 }
 
 function closeResetModal() {
@@ -315,10 +309,12 @@ function wireResetModal() {
   document.getElementById('reset-save').addEventListener('click', async () => {
     const project = resetModalProject;
     if (!project) return;
-    const stopTime = document.getElementById('reset-time').value;
+    const hours = parseInt(document.getElementById('reset-hours').value, 10) || 0;
+    const minutes = parseInt(document.getElementById('reset-minutes').value, 10) || 0;
+    const durationSeconds = Math.max(0, hours) * 3600 + Math.max(0, minutes) * 60;
     const note = document.getElementById('reset-note').value || null;
     closeResetModal();
-    await pywebview.api.reset_timer(project.name, stopTime, note);
+    await pywebview.api.reset_timer(project.name, durationSeconds, note);
   });
 
   document.getElementById('reset-omit').addEventListener('click', async () => {

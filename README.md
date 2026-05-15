@@ -231,7 +231,7 @@ Or from WSL:
 /mnt/c/Users/Xliminal/Code/PersonalProjects/WorkClock/venv/Scripts/python.exe -m pytest tests/ -v
 ```
 
-Coverage: path normalization, state read/mutate/atomic-write/today-rollover/legacy-backfill, `Time_Worked.json` append. UI behavior is verified manually + via Claude's screenshot tool (`tools/capture.py`).
+Coverage: path normalization, state read/mutate/atomic-write/today-rollover/legacy-backfill, `Time_Worked.json` append, `reset_timer` duration commit/log. UI behavior is verified manually + via Claude's screenshot tool (`tools/capture.py`).
 
 ## Tooling — Self-Check & Visual QA
 
@@ -293,6 +293,7 @@ The original spec is at `docs/superpowers/specs/2026-04-29-workclock-design.md` 
 | Display rounded down to 5-min increments, no seconds | UI clarity. Internal tracking is still per-second. |
 | Stop resets per-row counter to `0:00` | Counter = *current session* only. `today` / `total` shown separately. |
 | Note input is a required modal overlay (no Esc skip) | Forces context-capture for every session. |
+| Reset (`↺`) modal takes a worked **duration** (h + m), not a stop time | When a timer is wrong you rarely know the start *or* a meaningful stop — you only know roughly how long you worked. `reset_timer(name, duration_seconds, note)` logs `now − duration → now`. Fields prefill from the live timer estimate so a normal stop is still ~one click. |
 | Drag implemented via Win32 cursor-polling thread | pywebview's `easy_drag` and CSS `-webkit-app-region: drag` don't work in the WebView2 backend. |
 | Always-on-top via Win32 `SetWindowPos` | pywebview's `Window.on_top` property only takes effect at creation, not runtime toggle. |
 | Watchdog handles `on_created` + `on_moved` (not just `on_modified`) | Atomic writes (`.tmp` + rename) generate created/moved events, not modified. JS also polls every 3s as a safety net. |

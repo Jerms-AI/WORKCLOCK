@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>WorkClock</title>
-  <link rel="stylesheet" href="style.css?v=13" />
+  <link rel="stylesheet" href="style.css?v=14" />
 </head>
 <body>
   <header id="topbar">
@@ -29,14 +29,19 @@
       <div class="modal-title">Reset Session</div>
       <div class="modal-subtitle" id="reset-subtitle"></div>
       <div class="modal-meta" id="reset-meta"></div>
-      <div class="modal-label">adjusted stop time</div>
-      <input id="reset-time" class="modal-input" type="time" />
+      <div class="modal-label">time worked</div>
+      <div class="reset-hm">
+        <input id="reset-hours" class="modal-input hm" type="number" min="0" max="24" step="1" inputmode="numeric" />
+        <span class="hm-unit">h</span>
+        <input id="reset-minutes" class="modal-input hm" type="number" min="0" max="59" step="1" inputmode="numeric" />
+        <span class="hm-unit">m</span>
+      </div>
       <input id="reset-note" class="modal-input" type="text" autocomplete="off" placeholder="brief note (optional)" />
       <button id="reset-save" class="modal-save">Save Session</button>
       <button id="reset-omit" class="modal-omit">Omit</button>
     </div>
   </div>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
