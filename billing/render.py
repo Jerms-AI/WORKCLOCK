@@ -5,6 +5,8 @@ terracotta #c2410c, paid-green #5a7d54). No business logic here.
 """
 from __future__ import annotations
 
+import html
+
 _CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#f6f4ef;color:#1f1c18;font-family:'Inter',-apple-system,
@@ -148,11 +150,11 @@ def render_dashboard(summaries: dict, generated: str) -> str:
             paid = '<div class="cpaid none">— not yet invoiced</div>'
         cards += (
             f'<a class="card" href="{href}">'
-            f'<div class="cname">{title}</div>'
-            f'<div class="csub">{subtitle}</div>'
+            f'<div class="cname">{html.escape(title)}</div>'
+            f'<div class="csub">{html.escape(subtitle)}</div>'
             f'<div class="cout">{_money(s["outstanding_total"])}</div>'
             f'<div class="chrs">{s["outstanding_hours_total"]:.2f} h'
-            f' · {s["outstanding_caption"]}</div>'
+            f' · {html.escape(s["outstanding_caption"])}</div>'
             f'{paid}</a>')
     return f"""<!DOCTYPE html>
 <html lang="en">

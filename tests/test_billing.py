@@ -228,3 +228,17 @@ def test_generate_dashboard_writes_all(tmp_appdata, tmp_path):
     assert "Cyber Canvas Collective" in d
     assert 'href="AMD_billing_summary.html"' in d
     assert 'href="GLORIA_billing_summary.html"' in d
+
+
+def test_render_dashboard_zero_outstanding_still_renders():
+    zero = {
+        "client": "gloria", "projects": {"GLORIA": {}},
+        "paid_total": 0.0, "outstanding_total": 0.0,
+        "outstanding_hours_total": 0.0,
+        "outstanding_caption": "No closed weeks yet",
+        "generated": "May 16, 2026",
+    }
+    html = R.render_dashboard({"gloria": zero}, "May 16, 2026")
+    assert "Gloria" in html
+    assert "$0.00" in html
+    assert 'href="GLORIA_billing_summary.html"' in html

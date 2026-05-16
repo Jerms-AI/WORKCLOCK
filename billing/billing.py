@@ -13,8 +13,8 @@ from datetime import date, timedelta
 from pathlib import Path
 
 CLIENTS: dict[str, list[str]] = {
-    "amd": ["ASANDRA_POC", "ASANDRA_APP", "SITEREVAMP"],
     "gloria": ["GLORIA"],
+    "amd": ["ASANDRA_POC", "ASANDRA_APP", "SITEREVAMP"],
 }
 
 CLIENT_RATE: dict[str, int] = {"amd": 25, "gloria": 55}
