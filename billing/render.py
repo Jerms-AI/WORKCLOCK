@@ -33,6 +33,18 @@ font-weight:700;font-size:17px}
 .out-amt{color:#c2410c;font-weight:700}
 .openwk{margin-top:18px;font-size:13px;color:#6b6358;font-style:italic}
 footer{margin-top:36px;color:#6b6358;font-size:13px;line-height:1.6}
+a.card{display:block;text-decoration:none;color:inherit;
+border:1px solid #ddd6c9;border-radius:10px;padding:24px 26px;margin-bottom:18px;
+transition:border-color .15s}
+a.card:hover{border-color:#c2410c}
+.card .cname{font-family:'Fraunces',Georgia,serif;font-size:24px;
+font-weight:600;color:#1f1c18}
+.card .csub{font-size:12px;color:#6b6358;letter-spacing:.04em;margin-top:4px}
+.card .cout{font-size:34px;font-weight:700;color:#c2410c;
+font-variant-numeric:tabular-nums;margin-top:16px}
+.card .chrs{font-size:13px;color:#6b6358;margin-top:4px}
+.card .cpaid{font-size:13px;margin-top:10px;color:#5a7d54;font-weight:600}
+.card .cpaid.none{color:#6b6358;font-weight:400;font-style:italic}
 """
 
 _TITLES = {"amd": "AMD International", "gloria": "Gloria"}
@@ -112,6 +124,55 @@ def render(summary: dict, client: str, mode: str = "full") -> str:
     <footer>
       Paid amounts reflect received payments. Outstanding reflects closed
       Friday-ending billing weeks not yet invoiced.
+    </footer>
+  </div>
+</body>
+</html>
+"""
+
+
+def render_dashboard(summaries: dict, generated: str) -> str:
+    """Render an ordered {client: summary()-dict} mapping to a dashboard HTML.
+    Pure presentation; reuses _CSS / _TITLES / _money."""
+    cards = ""
+    if not summaries:
+        cards = '<p class="csub">No clients configured.</p>'
+    for client, s in summaries.items():
+        title = _TITLES.get(client, client.upper())
+        subtitle = " · ".join(s["projects"].keys())
+        href = f"{client.upper()}_billing_summary.html"
+        if s["paid_total"]:
+            paid = (f'<div class="cpaid">{_money(s["paid_total"])} paid '
+                    f'✓</div>')
+        else:
+            paid = '<div class="cpaid none">— not yet invoiced</div>'
+        cards += (
+            f'<a class="card" href="{href}">'
+            f'<div class="cname">{title}</div>'
+            f'<div class="csub">{subtitle}</div>'
+            f'<div class="cout">{_money(s["outstanding_total"])}</div>'
+            f'<div class="chrs">{s["outstanding_hours_total"]:.2f} h'
+            f' · {s["outstanding_caption"]}</div>'
+            f'{paid}</a>')
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cyber Canvas Collective — Dashboard</title>
+<style>{_CSS}</style>
+</head>
+<body>
+  <div class="sheet">
+    <header>
+      <div class="eyebrow">Cyber Canvas Collective</div>
+      <h1>Dashboard</h1>
+      <div class="date">As of {generated}</div>
+    </header>
+    {cards}
+    <footer>
+      Outstanding reflects closed Friday-ending billing weeks not yet
+      invoiced. Click a client for the full billing summary.
     </footer>
   </div>
 </body>

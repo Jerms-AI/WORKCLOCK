@@ -194,3 +194,24 @@ def test_generate_warns_on_zero_duration(tmp_appdata, tmp_path, capsys):
     assert rc == 0
     err = capsys.readouterr().err
     assert "WARNING" in err and "zero/negative" in err
+
+
+def test_render_dashboard_has_cards_and_links(tmp_appdata):
+    _write(tmp_appdata, SESSIONS, PAYMENTS)
+    amd = B.summary("amd", today=date(2026, 5, 16))
+    _write(tmp_appdata, [
+        {"project": "GLORIA", "date": "2026-05-05", "duration_seconds": 3600}],
+        {"payments": []})
+    glo = B.summary("gloria", today=date(2026, 5, 16))
+    html = R.render_dashboard({"gloria": glo, "amd": amd}, "May 16, 2026")
+    assert "<!DOCTYPE html>" in html
+    assert "Cyber Canvas Collective" in html
+    assert "As of May 16, 2026" in html
+    assert "AMD International" in html
+    assert "ASANDRA_POC · ASANDRA_APP · SITEREVAMP" in html
+    assert "$112.50" in html
+    assert "$1,101.50 paid ✓" in html
+    assert 'href="AMD_billing_summary.html"' in html
+    assert "Gloria" in html
+    assert "not yet invoiced" in html
+    assert 'href="GLORIA_billing_summary.html"' in html
