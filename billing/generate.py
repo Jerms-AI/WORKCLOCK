@@ -3,10 +3,12 @@
 Examples:
   python -m billing.generate amd
   python -m billing.generate gloria --mode outstanding-only
+  python -m billing.generate dashboard
 """
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from datetime import date
 
@@ -52,9 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     client = args.client.lower()
-    if client not in B.CLIENTS:
-        print(f"Unknown client {client!r}. Valid: {', '.join(B.CLIENTS)}",
-              file=sys.stderr)
+    if client != "dashboard" and client not in B.CLIENTS:
+        print(f"Unknown client {client!r}. Valid: "
+              f"{', '.join(B.CLIENTS)}, dashboard", file=sys.stderr)
         return 2
 
     if args.today:
@@ -62,6 +64,22 @@ def main(argv: list[str] | None = None) -> int:
         today = date(y, m, d)
     else:
         today = date.today()
+
+    if client == "dashboard":
+        dash_out = args.out or "C:\\Users\\Xliminal\\dashboard.html"
+        bills_dir = os.path.dirname(dash_out)
+        summaries: dict = {}
+        for c in B.CLIENTS:
+            bill_out = os.path.join(bills_dir,
+                                    f"{c.upper()}_billing_summary.html")
+            summaries[c] = _write_bill(c, today, out=bill_out)
+        generated = next(iter(summaries.values()))["generated"] \
+            if summaries else ""
+        html = R.render_dashboard(summaries, generated)
+        with open(dash_out, "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"Wrote {dash_out}  ({len(summaries)} client(s))")
+        return 0
 
     _write_bill(client, today, out=args.out)
     return 0

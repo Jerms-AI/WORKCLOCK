@@ -215,3 +215,16 @@ def test_render_dashboard_has_cards_and_links(tmp_appdata):
     assert "Gloria" in html
     assert "not yet invoiced" in html
     assert 'href="GLORIA_billing_summary.html"' in html
+
+
+def test_generate_dashboard_writes_all(tmp_appdata, tmp_path):
+    _write(tmp_appdata, SESSIONS, PAYMENTS)
+    dash = tmp_path / "dashboard.html"
+    rc = G.main(["dashboard", "--out", str(dash), "--today", "2026-05-16"])
+    assert rc == 0
+    assert (tmp_path / "AMD_billing_summary.html").exists()
+    assert (tmp_path / "GLORIA_billing_summary.html").exists()
+    d = dash.read_text(encoding="utf-8")
+    assert "Cyber Canvas Collective" in d
+    assert 'href="AMD_billing_summary.html"' in d
+    assert 'href="GLORIA_billing_summary.html"' in d
