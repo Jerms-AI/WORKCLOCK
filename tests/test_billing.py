@@ -148,3 +148,23 @@ def test_render_outstanding_only_omits_paid(tmp_appdata):
     html = R.render(s, "gloria", mode="outstanding-only")
     assert "Paid (invoiced)" not in html
     assert "GLORIA" in html
+
+
+from billing import generate as G
+
+
+def test_generate_writes_html(tmp_appdata, tmp_path):
+    _write(tmp_appdata, SESSIONS, PAYMENTS)
+    out = tmp_path / "amd.html"
+    rc = G.main(["amd", "--out", str(out), "--today", "2026-05-16"])
+    assert rc == 0
+    html = out.read_text(encoding="utf-8")
+    assert "Billing Summary" in html
+    assert "$112.50" in html
+
+
+def test_generate_unknown_client_errors(tmp_appdata, tmp_path):
+    _write(tmp_appdata, [])
+    rc = G.main(["acme", "--out", str(tmp_path / "x.html"),
+                 "--today", "2026-05-16"])
+    assert rc != 0
