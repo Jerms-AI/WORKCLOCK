@@ -169,13 +169,16 @@ def summary(client: str, today: date) -> dict:
         }
 
     paid_total = round(sum(p["paid_amount"] for p in projects.values()), 2)
-    outstanding_total = round(sum(w.total_amount for w in closed), 2)
-    outstanding_hours_total = round(sum(w.total_hours for w in closed), 2)
+    outstanding_total = round(
+        sum(p["outstanding_amount"] for p in projects.values()), 2)
+    outstanding_hours_total = round(
+        sum(p["outstanding_hours"] for p in projects.values()), 2)
 
     if period:
         ps, pe, po = period
         pwc = paid_week_count(ps, pe)
-        paid_caption = (f"Weeks 1–{pwc} · {fmt(ps)} – {fmt(pe)} "
+        wk = "Week 1" if pwc == 1 else f"Weeks 1–{pwc}"
+        paid_caption = (f"{wk} · {fmt(ps)} – {fmt(pe)} "
                         f"· settled {fmt(po)} ✓")
     else:
         paid_caption = None
