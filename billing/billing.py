@@ -75,7 +75,7 @@ class Week:
     num: int
     start: date
     end: date  # a Friday
-    closed: bool
+    closed: bool  # True when the week's Friday (end) is before today
     by_project: dict[str, float] = field(default_factory=dict)  # hours
     total_hours: float = 0.0
     total_amount: float = 0.0
@@ -87,7 +87,12 @@ def _parse(ds: str) -> date:
 
 
 def _client_paid_period(client: str, payments: list[dict]):
-    """(period_start, period_end, paid_on) across the client's projects, or None."""
+    """(period_start, period_end, paid_on) across the client's projects, or None.
+
+    Assumes all of a client's projects share the same paid period and takes
+    min/max across records — a future invoice covering only some projects with
+    a later period_end would skip the others' work.
+    """
     names = set(CLIENTS[client])
     rel = [p for p in payments if p.get("project") in names]
     if not rel:
@@ -100,6 +105,7 @@ def _client_paid_period(client: str, payments: list[dict]):
 
 def billing_weeks(client: str, today: date) -> list[Week]:
     names = set(CLIENTS[client])
+    rates = {n: project_rate(n) for n in names}
     payments = load_payments()
     period = _client_paid_period(client, payments)
     paid_end = period[1] if period else None
@@ -125,7 +131,7 @@ def billing_weeks(client: str, today: date) -> list[Week]:
             start = paid_end + timedelta(days=1)
         by_project = buckets[we]
         total_hours = sum(by_project.values())
-        total_amount = sum(h * project_rate(p) for p, h in by_project.items())
+        total_amount = sum(h * rates.get(p, 0) for p, h in by_project.items())
         weeks.append(Week(
             num=base_num + i + 1,
             start=start,

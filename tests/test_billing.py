@@ -85,5 +85,7 @@ def test_billing_weeks_buckets_and_numbers(tmp_appdata):
     assert w4.closed and w5.closed and not w6.closed
     # Sat 2026-05-09 work landed in week 5, not week 4
     assert w5.by_project["ASANDRA_APP"] == 2.0
+    assert w5.total_hours == 3.0
+    assert w5.total_amount == 3.0 * 25
     assert w4.total_hours == 1.5  # 3600 + 1800 s
     assert w4.total_amount == 1.5 * 25
