@@ -40,6 +40,17 @@ def main(argv: list[str] | None = None) -> int:
     mode = args.mode or _DEFAULT_MODE.get(client, "full")
     out = args.out or f"C:\\Users\\Xliminal\\{client.upper()}_billing_summary.html"
 
+    bad = [
+        f'{x.get("project")} {x.get("date")} ({x.get("duration_seconds")}s)'
+        for x in B.load_sessions()
+        if x.get("project") in B.CLIENTS[client]
+        and x.get("duration_seconds", 0) <= 0
+    ]
+    if bad:
+        print(f"WARNING: {len(bad)} zero/negative-duration session(s) for "
+              f"{client} (contribute $0; clean in WorkClock): "
+              + "; ".join(bad), file=sys.stderr)
+
     s = B.summary(client, today=today)
     html = R.render(s, client, mode=mode)
     with open(out, "w", encoding="utf-8") as f:

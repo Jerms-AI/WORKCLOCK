@@ -180,3 +180,17 @@ def test_summary_uses_client_rate_when_project_missing_from_state(tmp_appdata):
     poc = s["projects"]["ASANDRA_POC"]
     assert poc["outstanding_hours"] == 1.0          # Week 4 only
     assert poc["outstanding_amount"] == 25.0        # 1.0h * $25 client fallback (not $0)
+
+
+def test_generate_warns_on_zero_duration(tmp_appdata, tmp_path, capsys):
+    _write(tmp_appdata, [
+        {"project": "SITEREVAMP", "date": "2026-05-08", "duration_seconds": 0,
+         "note": "df"},
+        {"project": "SITEREVAMP", "date": "2026-05-08",
+         "duration_seconds": 3600, "note": "real"},
+    ], {"payments": []})
+    rc = G.main(["amd", "--out", str(tmp_path / "a.html"),
+                 "--today", "2026-05-16"])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "WARNING" in err and "zero/negative" in err

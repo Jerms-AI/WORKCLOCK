@@ -169,11 +169,11 @@ def summary(client: str, today: date) -> dict:
         paid_hours = round(sum(
             p.get("hours", 0.0) for p in payments
             if p.get("project") == name), 2)
-        out_h = round(sum(w.by_project.get(name, 0.0) for w in closed), 4)
+        out_h = round(sum(w.by_project.get(name, 0.0) for w in closed), 2)
         projects[name] = {
             "paid_hours": paid_hours,
             "paid_amount": paid_amount,
-            "outstanding_hours": round(out_h, 2),
+            "outstanding_hours": out_h,
             "outstanding_amount": round(out_h * rate_for(client, name), 2),
         }
 
@@ -204,7 +204,6 @@ def summary(client: str, today: date) -> dict:
     if open_weeks:
         w = open_weeks[0]
         open_week = {"num": w.num, "hours": round(w.total_hours, 2),
-                     "amount": w.total_amount,
                      "range": f"{fmt(w.start)} – {fmt(w.end)}"}
 
     return {

@@ -39,3 +39,7 @@ weeks fold into Paid automatically. The generator never writes billing.json.
   in WorkClock if they clutter notes.
 - AMD is always the 3 projects bundled (ASANDRA_POC, ASANDRA_APP, SITEREVAMP).
 - Tests: `./venv/Scripts/python.exe -m pytest tests/test_billing.py -v`
+- `_client_paid_period` assumes all of a client's projects share one paid
+  period (min/max across records). If a future invoice covers only some
+  projects with a later `period_end`, the others' work in that span would be
+  wrongly suppressed — record payments per shared period.
