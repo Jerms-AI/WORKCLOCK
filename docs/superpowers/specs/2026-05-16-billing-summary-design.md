@@ -73,8 +73,12 @@ WSL paths: `/mnt/c/Users/Xliminal/AppData/Roaming/WorkClock/...`
 | 5 | May 9 – May 15 (Fri) | CLOSED → billable, $677.75 |
 | 6 | May 16 – May 22 (Fri) | open, in progress, not billed |
 
-Outstanding bill (Weeks 4–5): ASANDRA_POC $144.58, ASANDRA_APP $511.99,
-SITEREVAMP $545.90 → **$1,202.47 / 48.10 h**.
+Outstanding bill (Weeks 4–5): ASANDRA_POC $144.50, ASANDRA_APP $512.00,
+SITEREVAMP $546.00 → **$1,202.50 / 48.10 h**.
+
+(Per-project hours are rounded to 2dp first, then × rate, so every displayed
+row self-checks `hours × rate = amount` and the rows sum exactly to the total.
+This is why the total is $1,202.50, not the raw-precision $1,202.46.)
 
 ## The artifact (HTML output)
 

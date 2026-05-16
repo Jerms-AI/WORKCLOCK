@@ -909,13 +909,14 @@ Expected: all green (existing 22 + new billing tests)
 
 - [ ] **Step 2: Generate the real AMD bill**
 
-Run: `./venv/Scripts/python.exe -m billing.generate amd --today 2026-05-16 --out /mnt/c/Users/Xliminal/AMD_billing_summary.html`
-Expected stdout: `Wrote ... (outstanding 1,202.47, paid 1,101.50)`
+Run: `./venv/Scripts/python.exe -m billing.generate amd --today 2026-05-16 --out 'C:\Users\Xliminal\AMD_billing_summary.html'`
+Expected stdout: `Wrote ... (outstanding 1,202.50, paid 1,101.50)`
 
 - [ ] **Step 3: Verify the number matches the spec**
 
-The outstanding total MUST equal **$1,202.47** (closed Weeks 4–5) and paid
-**$1,101.50**. If it differs, STOP and reconcile against
+The outstanding total MUST equal **$1,202.50** (closed Weeks 4–5, hours rounded
+to 2dp before × rate so rows self-check) and paid **$1,101.50**. If it differs,
+STOP and reconcile against
 `docs/superpowers/specs/2026-05-16-billing-summary-design.md` before continuing.
 
 - [ ] **Step 4: Visual check**
@@ -952,7 +953,7 @@ git commit -m "chore: verified billing generator on live AMD + Gloria data"
 - Error handling: missing billing.json (Task 1 default), unknown client
   (Task 6 rc=2), zero-duration harmless (covered by sum logic). ✓
 - Testing matches spec's test list → Tasks 1–6. ✓
-- Worked-example numbers ($1,202.47 / $1,101.50) → Task 8 gate. ✓
+- Worked-example numbers ($1,202.50 / $1,101.50) → Task 8 gate. ✓
 
 **Placeholder scan:** none — every step has full code/commands.
 
