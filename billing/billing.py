@@ -57,3 +57,14 @@ def project_rate(project: str) -> int:
         if p.get("name") == project:
             return int(p.get("rate", 0))
     return 0
+
+
+def week_end_friday(d: date) -> date:
+    """The Friday on or after d (weekday(): Mon=0 .. Fri=4 .. Sun=6)."""
+    return d + timedelta(days=(4 - d.weekday()) % 7)
+
+
+def paid_week_count(period_start: date, period_end: date) -> int:
+    """Number of 7-day weeks the paid invoice spans (inclusive, ceil)."""
+    days = (period_end - period_start).days + 1
+    return (days + 6) // 7

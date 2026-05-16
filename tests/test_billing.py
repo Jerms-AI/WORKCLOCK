@@ -37,3 +37,16 @@ def test_load_sessions_and_rate(tmp_appdata):
     assert B.load_sessions()[0]["project"] == "SITEREVAMP"
     assert B.project_rate("SITEREVAMP") == 25
     assert B.project_rate("GLORIA") == 55
+
+
+def test_week_end_friday():
+    # Mon 2026-05-04 -> Fri 2026-05-08
+    assert B.week_end_friday(date(2026, 5, 4)) == date(2026, 5, 8)
+    # Sat 2026-05-16 rolls forward to Fri 2026-05-22
+    assert B.week_end_friday(date(2026, 5, 16)) == date(2026, 5, 22)
+    # A Friday maps to itself
+    assert B.week_end_friday(date(2026, 5, 15)) == date(2026, 5, 15)
+
+
+def test_paid_week_count_apr13_may3_is_3():
+    assert B.paid_week_count(date(2026, 4, 13), date(2026, 5, 3)) == 3
