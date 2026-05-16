@@ -137,6 +137,7 @@ def test_render_full_contains_key_fields(tmp_appdata):
     assert "$112.50" in html  # outstanding total
     assert "Week 6" in html   # open week line
     assert "Paid (invoiced)" in html
+    assert "May 16, 2026" in html
 
 
 def test_render_outstanding_only_omits_paid(tmp_appdata):

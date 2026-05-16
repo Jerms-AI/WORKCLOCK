@@ -89,7 +89,6 @@ def render(summary: dict, client: str, mode: str = "full") -> str:
         openwk = (f'<div class="openwk">Week {ow["num"]} ({ow["range"]}) '
                   f'in progress — {ow["hours"]:.2f} h, not yet billed.</div>')
 
-    colcount = 3 if full else 2
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -103,7 +102,7 @@ def render(summary: dict, client: str, mode: str = "full") -> str:
     <header>
       <div class="eyebrow">{title}</div>
       <h1>Billing Summary</h1>
-      <div class="date">As of {s["generated"]}, 2026</div>
+      <div class="date">As of {s["generated"]}</div>
     </header>
     <table>
       <thead><tr><th>Project</th>{head_paid}{head_out}</tr></thead>
@@ -112,7 +111,7 @@ def render(summary: dict, client: str, mode: str = "full") -> str:
     {openwk}
     <footer>
       Paid amounts reflect received payments. Outstanding reflects closed
-      Friday-ending billing weeks not yet invoiced. ({colcount}-col)
+      Friday-ending billing weeks not yet invoiced.
     </footer>
   </div>
 </body>

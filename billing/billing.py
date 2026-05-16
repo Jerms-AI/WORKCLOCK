@@ -207,5 +207,5 @@ def summary(client: str, today: date) -> dict:
         "paid_caption": paid_caption,
         "outstanding_caption": outstanding_caption,
         "open_week": open_week,
-        "generated": fmt(today),
+        "generated": f"{_MON[today.month]} {today.day}, {today.year}",
     }
