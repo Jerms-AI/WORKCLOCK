@@ -121,3 +121,29 @@ def test_summary_gloria_no_payments(tmp_appdata):
     assert s["paid_total"] == 0.0
     assert s["paid_caption"] is None
     assert s["projects"]["GLORIA"]["outstanding_amount"] == 55.0
+
+
+from billing import render as R
+
+
+def test_render_full_contains_key_fields(tmp_appdata):
+    _write(tmp_appdata, SESSIONS, PAYMENTS)
+    s = B.summary("amd", today=date(2026, 5, 16))
+    html = R.render(s, "amd", mode="full")
+    assert "<!DOCTYPE html>" in html
+    assert "Weeks 1–3 · Apr 13 – May 3 · settled May 8 ✓" in html
+    assert "Weeks 4–5 · May 4 – May 15" in html
+    assert "ASANDRA_POC" in html
+    assert "$112.50" in html  # outstanding total
+    assert "Week 6" in html   # open week line
+    assert "Paid (invoiced)" in html
+
+
+def test_render_outstanding_only_omits_paid(tmp_appdata):
+    _write(tmp_appdata, [
+        {"project": "GLORIA", "date": "2026-05-05", "duration_seconds": 3600}],
+        {"payments": []})
+    s = B.summary("gloria", today=date(2026, 5, 16))
+    html = R.render(s, "gloria", mode="outstanding-only")
+    assert "Paid (invoiced)" not in html
+    assert "GLORIA" in html
