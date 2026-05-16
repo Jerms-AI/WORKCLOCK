@@ -7,6 +7,14 @@ Turns WorkClock data into a per-client billing-summary HTML.
     ./venv/Scripts/python.exe -m billing.generate amd
     ./venv/Scripts/python.exe -m billing.generate gloria
 
+Whole dashboard (regenerates every client bill AND `dashboard.html`):
+
+    ./venv/Scripts/python.exe -m billing.generate dashboard
+
+Writes `C:\Users\Xliminal\dashboard.html` plus each
+`C:\Users\Xliminal\<CLIENT>_billing_summary.html`; the dashboard links to the
+bills by relative filename (open the dashboard locally and the links work).
+
 Output default: `C:\Users\Xliminal\<CLIENT>_billing_summary.html`
 (`/mnt/c/Users/Xliminal/...` from WSL). Override with `--out`.
 `--today YYYY-MM-DD` reproduces a past bill. `--mode full|outstanding-only`

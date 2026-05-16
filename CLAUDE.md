@@ -10,6 +10,7 @@ To post a client bill:
 
     ./venv/Scripts/python.exe -m billing.generate amd      # 3 AMD projects
     ./venv/Scripts/python.exe -m billing.generate gloria   # outstanding-only
+    ./venv/Scripts/python.exe -m billing.generate dashboard # all + dashboard.html
 
 Writes `C:\Users\Xliminal\<CLIENT>_billing_summary.html` for screenshot/email.
 See `billing/DEVDOC.md` for the Friday-week model and how to record a payment.
