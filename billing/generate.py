@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
         today = date.today()
 
     mode = args.mode or _DEFAULT_MODE.get(client, "full")
-    out = args.out or f"/mnt/c/Users/Xliminal/{client.upper()}_billing_summary.html"
+    out = args.out or f"C:\\Users\\Xliminal\\{client.upper()}_billing_summary.html"
 
     s = B.summary(client, today=today)
     html = R.render(s, client, mode=mode)

@@ -168,3 +168,15 @@ def test_generate_unknown_client_errors(tmp_appdata, tmp_path):
     rc = G.main(["acme", "--out", str(tmp_path / "x.html"),
                  "--today", "2026-05-16"])
     assert rc != 0
+
+
+def test_summary_uses_client_rate_when_project_missing_from_state(tmp_appdata):
+    # state.json omits ASANDRA_POC entirely (retired project)
+    _write(tmp_appdata, SESSIONS, PAYMENTS, projects=[
+        {"name": "ASANDRA_APP", "rate": 25},
+        {"name": "SITEREVAMP", "rate": 25},
+    ])
+    s = B.summary("amd", today=date(2026, 5, 16))
+    poc = s["projects"]["ASANDRA_POC"]
+    assert poc["outstanding_hours"] == 1.0          # Week 4 only
+    assert poc["outstanding_amount"] == 25.0        # 1.0h * $25 client fallback (not $0)

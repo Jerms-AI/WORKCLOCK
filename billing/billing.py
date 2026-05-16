@@ -17,6 +17,8 @@ CLIENTS: dict[str, list[str]] = {
     "gloria": ["GLORIA"],
 }
 
+CLIENT_RATE: dict[str, int] = {"amd": 25, "gloria": 55}
+
 _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -57,6 +59,13 @@ def project_rate(project: str) -> int:
         if p.get("name") == project:
             return int(p.get("rate", 0))
     return 0
+
+
+def rate_for(client: str, project: str) -> int:
+    """Project's state.json rate, or the client's flat rate if the project
+    has no state.json entry (e.g. a retired project still in Time_Worked.json)."""
+    r = project_rate(project)
+    return r if r else CLIENT_RATE.get(client, 0)
 
 
 def week_end_friday(d: date) -> date:
@@ -105,7 +114,7 @@ def _client_paid_period(client: str, payments: list[dict]):
 
 def billing_weeks(client: str, today: date) -> list[Week]:
     names = set(CLIENTS[client])
-    rates = {n: project_rate(n) for n in names}
+    rates = {n: rate_for(client, n) for n in names}
     payments = load_payments()
     period = _client_paid_period(client, payments)
     paid_end = period[1] if period else None
@@ -165,7 +174,7 @@ def summary(client: str, today: date) -> dict:
             "paid_hours": paid_hours,
             "paid_amount": paid_amount,
             "outstanding_hours": round(out_h, 2),
-            "outstanding_amount": round(out_h * project_rate(name), 2),
+            "outstanding_amount": round(out_h * rate_for(client, name), 2),
         }
 
     paid_total = round(sum(p["paid_amount"] for p in projects.values()), 2)
