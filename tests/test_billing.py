@@ -89,3 +89,35 @@ def test_billing_weeks_buckets_and_numbers(tmp_appdata):
     assert w5.total_amount == 3.0 * 25
     assert w4.total_hours == 1.5  # 3600 + 1800 s
     assert w4.total_amount == 1.5 * 25
+
+
+def test_summary_amd_worked_example(tmp_appdata):
+    _write(tmp_appdata, SESSIONS, PAYMENTS)
+    s = B.summary("amd", today=date(2026, 5, 16))
+
+    poc = s["projects"]["ASANDRA_POC"]
+    assert poc["paid_amount"] == 410.50
+    assert poc["outstanding_hours"] == 1.0  # only Week4 3600s
+    assert poc["outstanding_amount"] == 25.0
+
+    app = s["projects"]["ASANDRA_APP"]
+    assert app["paid_amount"] == 0.0
+    assert app["outstanding_hours"] == 2.0  # Week5 only (Week6 open, excluded)
+
+    assert s["paid_total"] == 1101.50
+    # closed weeks 4+5: 1.5h*25 + (2h+1h)*25 = 37.5 + 75 = 112.5
+    assert s["outstanding_total"] == 112.50
+    assert s["open_week"]["num"] == 6
+    assert s["open_week"]["hours"] == 0.25
+    assert s["paid_caption"] == "Weeks 1–3 · Apr 13 – May 3 · settled May 8 ✓"
+    assert s["outstanding_caption"] == "Weeks 4–5 · May 4 – May 15"
+
+
+def test_summary_gloria_no_payments(tmp_appdata):
+    _write(tmp_appdata, [
+        {"project": "GLORIA", "date": "2026-05-05", "duration_seconds": 3600},
+    ], {"payments": []})
+    s = B.summary("gloria", today=date(2026, 5, 16))
+    assert s["paid_total"] == 0.0
+    assert s["paid_caption"] is None
+    assert s["projects"]["GLORIA"]["outstanding_amount"] == 55.0

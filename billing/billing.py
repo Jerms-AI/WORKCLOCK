@@ -142,3 +142,67 @@ def billing_weeks(client: str, today: date) -> list[Week]:
             total_amount=round(total_amount, 2),
         ))
     return weeks
+
+
+def summary(client: str, today: date) -> dict:
+    names = CLIENTS[client]
+    payments = load_payments()
+    period = _client_paid_period(client, payments)
+    weeks = billing_weeks(client, today)
+    closed = [w for w in weeks if w.closed]
+    open_weeks = [w for w in weeks if not w.closed]
+
+    projects: dict[str, dict] = {}
+    for name in names:
+        paid_amount = round(sum(
+            p.get("amount", 0.0) for p in payments
+            if p.get("project") == name), 2)
+        paid_hours = round(sum(
+            p.get("hours", 0.0) for p in payments
+            if p.get("project") == name), 2)
+        out_h = round(sum(w.by_project.get(name, 0.0) for w in closed), 4)
+        projects[name] = {
+            "paid_hours": paid_hours,
+            "paid_amount": paid_amount,
+            "outstanding_hours": round(out_h, 2),
+            "outstanding_amount": round(out_h * project_rate(name), 2),
+        }
+
+    paid_total = round(sum(p["paid_amount"] for p in projects.values()), 2)
+    outstanding_total = round(sum(w.total_amount for w in closed), 2)
+    outstanding_hours_total = round(sum(w.total_hours for w in closed), 2)
+
+    if period:
+        ps, pe, po = period
+        pwc = paid_week_count(ps, pe)
+        paid_caption = (f"Weeks 1–{pwc} · {fmt(ps)} – {fmt(pe)} "
+                        f"· settled {fmt(po)} ✓")
+    else:
+        paid_caption = None
+
+    if closed:
+        n0, n1 = closed[0].num, closed[-1].num
+        wlabel = f"Week {n0}" if n0 == n1 else f"Weeks {n0}–{n1}"
+        outstanding_caption = (
+            f"{wlabel} · {fmt(closed[0].start)} – {fmt(closed[-1].end)}")
+    else:
+        outstanding_caption = "No closed weeks yet"
+
+    open_week = None
+    if open_weeks:
+        w = open_weeks[0]
+        open_week = {"num": w.num, "hours": round(w.total_hours, 2),
+                     "amount": w.total_amount,
+                     "range": f"{fmt(w.start)} – {fmt(w.end)}"}
+
+    return {
+        "client": client,
+        "projects": projects,
+        "paid_total": paid_total,
+        "outstanding_total": outstanding_total,
+        "outstanding_hours_total": outstanding_hours_total,
+        "paid_caption": paid_caption,
+        "outstanding_caption": outstanding_caption,
+        "open_week": open_week,
+        "generated": fmt(today),
+    }
